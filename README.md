@@ -4,9 +4,9 @@ A browser version of SKREWELL, the M-VAVE FM-1 firmware: a self-modulating drone
 
 `index.html` is the whole app: one page, the engine inside it as WebAssembly, running in an AudioWorklet. Serve it over http(s) (opened as a file, browsers refuse the audio worklet).
 
-- Scope, 8 functions × 8 channels with DRAW / WRAP / RAND, the three modes, OSC / FILTER / DELAY / FLOW.
-- Reverb on a send, glue compressor.
-- 96 slots in 6 octaves, made-up names, hold a slot 4 s for its original preset.
+- A full-screen scope behind everything; 8 functions × 8 channels with DRAW / WRAP / RAND, the three modes, OSC / FILTER / DELAY / FLOW.
+- Reverb as a send or an insert, with a low cut / high cut on its return; glue compressor.
+- 128 slots in 8 octaves (1–89: the original's Bank 1), made-up names, hold a slot 4 s for its original preset.
 - REC: record moves (only the controls you touch), loop, overdub; hold to clear.
 
 ## Build

@@ -46,6 +46,9 @@ typedef struct {                               /* reverb (global FX): 4-line FDN
     float decay;     /* 0..1: RT60 0.3 .. 12 s */
     float damp;      /* 0..1: high damping, bright .. dark */
     float mix;       /* 0..1: the send (0 = off); the dry signal always passes whole */
+    float lc_hz;     /* low cut on the reverb's return, Hz (0 = off) */
+    float hc_hz;     /* high cut on the reverb's return, Hz (0 = off) */
+    uint8_t insert;  /* 1: an insert, mix = dry/wet; 0: a send (the FM-1 firmware's) */
 } skr_verb;
 #define SKR_RV_N 4
 #define SKR_RV_LEN 3912                       /* longest line at full size + interpolation headroom */
@@ -74,6 +77,7 @@ typedef struct {
     float log2fm, amD, k, nrm, smt, cvCo, gCo, scCo, gainT, gainS, scXs, scYs;
     float dz[SKR_NL][3][2], dlp[8][5];       /* band-limiting filters for reduced-rate lines */
     uint16_t rv_pos, ap_pos[SKR_AP_N];
+    float rv_hpc[5], rv_lpc[5], rv_fz[2][2][2]; uint8_t rv_hpon, rv_lpon;   /* the return's low / high cut */
     float rv_lp[SKR_RV_N], rv_g[SKR_RV_N], rv_len[SKR_RV_N], rv_lenT[SKR_RV_N], rv_dco, rv_dry, rv_wet, rv_lenCo;
     float gl_env, gl_gain, gl_att, gl_rel, gl_thr, gl_knee, gl_slope, gl_mk;   /* glue state */
     float sr;

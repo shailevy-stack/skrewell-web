@@ -243,6 +243,10 @@ static void lp_coef(float *c, float fc, float sr) {             /* Butterworth l
     float w = tanf(3.14159265f * fc / sr), q = 0.70710678f, n = 1.f / (1.f + w / q + w * w);
     c[0] = w * w * n; c[1] = 2 * c[0]; c[2] = c[0]; c[3] = 2.f * (w * w - 1.f) * n; c[4] = (1.f - w / q + w * w) * n;
 }
+static void hp_coef(float *c, float fc, float sr) {             /* Butterworth high-pass */
+    float w = tanf(3.14159265f * fc / sr), q = 0.70710678f, n = 1.f / (1.f + w / q + w * w);
+    c[0] = n; c[1] = -2.f * n; c[2] = n; c[3] = 2.f * (w * w - 1.f) * n; c[4] = (1.f - w / q + w * w) * n;
+}
 static void dl_reshift(skr_engine *e, int li, unsigned ns) {
     /* the line's samples moved as they are (no decode, no averaging: cheap enough for any block), every g-th one
      * kept or each repeated g times; only the audio already in the line at the switch is touched */
@@ -332,7 +336,12 @@ static void verb_control(skr_engine *e) {
     float fc = 16000.f * fm_exp2f(-clampf(v->damp, 0, 1) * 3.64f);       /* 16 kHz .. 1.3 kHz */
     e->rv_dco = one_pole(fc, sr);
     float m = clampf(v->mix, 0, 1);              /* a send: the dry signal stays whole, SEND sets the reverb's share */
-    e->rv_dry = 1.f; e->rv_wet = 0.7f * m;
+    if (v->insert) { e->rv_dry = 1.f - m; e->rv_wet = m; }   /* an insert: dry/wet */
+    else { e->rv_dry = 1.f; e->rv_wet = 0.7f * m; }
+    e->rv_hpon = v->lc_hz > 20.f;
+    if (e->rv_hpon) hp_coef(e->rv_hpc, clampf(v->lc_hz, 20.f, 0.4f * sr), sr);
+    e->rv_lpon = v->hc_hz > 0.f && v->hc_hz < 0.4f * sr;
+    if (e->rv_lpon) lp_coef(e->rv_lpc, clampf(v->hc_hz, 20.f, 0.4f * sr), sr);
     e->rv_lenCo = 1.f - fm_expf(-1.f / (0.15f * sr));                      /* size glides over ~150 ms */
 }
 static inline AI float ap_proc(skr_engine *e, int k, float x) {
@@ -362,6 +371,8 @@ static inline AI void verb(skr_engine *e, float *l, float *r) {
     if (++p >= SKR_RV_LEN) p = 0;
     e->rv_pos = (uint16_t)p;
     float wl = d[0] - d[2], wr = d[1] - d[3];   /* uncorrelated sides; each keeps its own side of the image */
+    if (e->rv_hpon) { wl = bq(e->rv_fz[0][0], e->rv_hpc, wl); wr = bq(e->rv_fz[1][0], e->rv_hpc, wr); }
+    if (e->rv_lpon) { wl = bq(e->rv_fz[0][1], e->rv_lpc, wl); wr = bq(e->rv_fz[1][1], e->rv_lpc, wr); }
     *l = *l * e->rv_dry + wl * e->rv_wet; *r = *r * e->rv_dry + wr * e->rv_wet;
 }
 

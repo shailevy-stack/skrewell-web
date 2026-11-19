@@ -1,7 +1,7 @@
 class SkrewellProc extends AudioWorkletProcessor {
   constructor(o) {
     super();
-    this.ready = false; this.q = []; this.run = false; this.gain = 0; this.vol = 0.8; this.blk = 0;
+    this.ready = false; this.q = []; this.run = false; this.gain = 0; this.vol = 0.8;
     this.sbuf = new Float32Array(4 * 64 * 16); this.sn = 0;
     this.port.onmessage = (e) => this.ready ? this.cmd(e.data) : this.q.push(e.data);
     WebAssembly.instantiate(o.processorOptions.bytes, {}).then((r) => {
@@ -21,7 +21,7 @@ class SkrewellProc extends AudioWorkletProcessor {
       case 'pf': this.dv().setFloat32(m.off, m.x, true); break;
       case 'pm': w.set_mode(m.m); break;
       case 'patch': new Uint8Array(w.memory.buffer, w.patch_ptr(), w.patch_size()).set(m.bytes); break;
-      case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3]); break;
+      case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4], m.a[5], m.a[6]); break;
       case 'glue': w.set_glue(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4]); break;
     }
   }

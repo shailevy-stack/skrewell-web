@@ -34,7 +34,7 @@ EXPORT(set_knob) void w_set_knob(int k, float x) { float *p[4] = {&E.p.osc, &E.p
 EXPORT(get_knob) float w_get_knob(int k) { const float *p[4] = {&E.p.osc, &E.p.filter, &E.p.delay, &E.p.flow}; return *p[k & 3]; }
 EXPORT(set_mode) void w_set_mode(int m) { E.p.mode = (uint8_t)(m < 0 ? 0 : m > 2 ? 2 : m); }
 EXPORT(get_mode) int w_get_mode(void) { return E.p.mode; }
-EXPORT(set_verb) void w_set_verb(float size, float decay, float damp, float send) { E.verb = (skr_verb){size, decay, damp, send}; }
+EXPORT(set_verb) void w_set_verb(float size, float decay, float damp, float mix, float lc_hz, float hc_hz, int insert) { E.verb = (skr_verb){size, decay, damp, mix, lc_hz, hc_hz, (uint8_t)(insert != 0)}; }
 EXPORT(set_glue) void w_set_glue(float thr, float ratio, float rel, float mk, float mix) { E.glue = (skr_glue){thr, ratio, 10.f, rel, mk, mix}; }
 EXPORT(glue_gain) float w_glue_gain(void) { return E.gl_gain; }
 EXPORT(set_scope_mix) void w_set_scope_mix(float x, float y) { E.scX = x; E.scY = y; }
