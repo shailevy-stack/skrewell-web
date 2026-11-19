@@ -9,5 +9,7 @@ clang --target=wasm32 -O2 -ffreestanding -nostdlib -fno-builtin-memset -DPLAT_HO
 python3 -c "
 import base64
 s=open('src/app.html').read(); w=base64.b64encode(open('build/skrewell.wasm','rb').read()).decode()
-open('index.html','w').write(s.replace('__WASM__', w))"
+open('index.html','w').write(s.replace('__WASM__', w))
+import re
+open('worklet.js','w').write(re.search(r'<script id=\"worklet\" type=\"text/plain\">\n(.*?)</script>', s, re.S).group(1))"
 echo "index.html rebuilt"

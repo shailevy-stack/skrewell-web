@@ -499,8 +499,11 @@ async function startAudio() {
   if (ctx) return true;
   try {
     ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
-    const url = URL.createObjectURL(new Blob([document.getElementById('worklet').textContent], { type: 'application/javascript' }));
-    await ctx.audioWorklet.addModule(url);
+    try { await ctx.audioWorklet.addModule('worklet.js'); }      /* its own file (the artifact's policy may refuse blob: code) */
+    catch (e1) {                                                  /* a single-file copy: the same code, from this page */
+      const url = URL.createObjectURL(new Blob([document.getElementById('worklet').textContent], { type: 'application/javascript' }));
+      await ctx.audioWorklet.addModule(url);
+    }
     node = new AudioWorkletNode(ctx, 'skrewell', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { bytes: WASM } });
     node.connect(ctx.destination);
     node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts); S.gr = e.data.g; } };
