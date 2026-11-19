@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SKREWELL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* One visual world: the FM-1 firmware's cold black-and-white, one solid white box = selected / live.
+   Layout: scope left (the instrument's face), editing right, slots and effects below. */
+:root {
+  --bg: #000;
+  --ink: #fff;
+  --label: #9a9a9a;
+  --outline: #5a5a5a;
+  --fill: #5e5e5e;
+  --track: #3a3a3a;
+  --rule: #2a2a2a;
+  --faint: #6a6a6a;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.35 var(--mono); letter-spacing: .02em; -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+button { background: none; border: 1px solid var(--outline); padding: 6px 10px; cursor: pointer; text-transform: uppercase; letter-spacing: .06em; }
+button:hover { border-color: var(--ink); }
+button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.app { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.app > * { min-width: 0; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-height: 44px; border-bottom: 1px solid var(--rule); padding-bottom: 12px; }
+.word { font-weight: 600; font-size: 15px; letter-spacing: .28em; }
+.slotbox { border: 1px solid var(--ink); padding: 2px 6px; font-variant-numeric: tabular-nums; }
+.pname { font-weight: 500; text-transform: uppercase; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34ch; }
+header > * { flex-shrink: 0; }
+header .pname, header .msg { flex-shrink: 1; }
+.tag { border: 1px solid var(--outline); padding: 1px 6px; color: var(--label); }
+.spacer { flex: 1; }
+.msg { color: var(--label); text-transform: uppercase; flex: 1 1 0; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 20px; height: 20px; }
+.msg b { background: var(--ink); color: var(--bg); padding: 1px 5px; margin-right: 6px; font-weight: 500; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px; align-items: start; }
+.scopewrap { position: relative; aspect-ratio: 1; border: 1px solid var(--rule); background: #000; }
+#scope { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.scopehint[hidden] { display: none; }
+.scopehint { position: absolute; inset: 0; display: grid; place-items: center; color: var(--label); text-transform: uppercase; pointer-events: none; letter-spacing: .12em; }
+.panel { display: grid; gap: 12px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.lbl { color: var(--label); text-transform: uppercase; font-size: 11px; letter-spacing: .1em; }
+.fn { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.fn button { text-align: left; padding: 6px 8px; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fn button span { color: var(--label); margin-right: 6px; }
+.fn button.on span { color: var(--bg); }
+.fn button[hidden] { display: none; }
+.barhead { display: flex; justify-content: space-between; align-items: baseline; }
+.barhead .big { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+#bars { width: 100%; aspect-ratio: 2.1; display: block; touch-action: none; cursor: ns-resize; border: 1px solid var(--rule); }
+.seg { display: inline-flex; }
+.seg button { border-right-width: 0; }
+.seg button:last-child { border-right-width: 1px; }
+.knobs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.knob { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border: 1px solid var(--rule); touch-action: none; cursor: ns-resize; user-select: none; }
+.knob svg { width: 56px; height: 56px; }
+.knob .v { font-variant-numeric: tabular-nums; }
+.lower { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.card { border: 1px solid var(--rule); padding: 12px; display: grid; gap: 10px; }
+.card h2 { margin: 0; font-size: 12px; font-weight: 500; letter-spacing: .16em; display: flex; gap: 8px; align-items: center; }
+.card h2 .k { background: var(--ink); color: var(--bg); padding: 0 5px; }
+.octs { display: flex; gap: 4px; }
+.octs button { padding: 4px 9px; }
+.slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.slot { text-align: left; padding: 6px; min-height: 52px; display: grid; align-content: start; gap: 2px; text-transform: none; letter-spacing: .02em; position: relative; touch-action: none; user-select: none; }
+.slot .n { color: var(--label); font-size: 11px; font-variant-numeric: tabular-nums; }
+.slot .nm { font-size: 11px; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.slot .l { position: absolute; top: 5px; right: 6px; font-size: 10px; border: 1px solid currentColor; padding: 0 3px; }
+.slot.empty { border-style: dashed; color: var(--faint); }
+.slot.cur { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.slot.cur .n { color: var(--bg); }
+.slot.armed { border-color: var(--ink); }
+.slot .hold { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; width: 0; }
+.fx { display: grid; gap: 8px; }
+.fxrow { display: grid; grid-template-columns: 10ch minmax(0, 1fr) 9ch; align-items: center; gap: 10px; }
+.fxrow output { text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: none; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--outline); }
+input[type=range]::-moz-range-track { height: 1px; background: var(--outline); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 9px; height: 14px; background: var(--ink); margin-top: -7px; border: 0; }
+input[type=range]::-moz-range-thumb { width: 9px; height: 14px; background: var(--ink); border: 0; border-radius: 0; }
+.meter { display: flex; gap: 3px; align-items: center; }
+.meter i { width: 12px; height: 8px; border: 1px solid var(--outline); }
+.meter i.on { background: var(--ink); border-color: var(--ink); }
+.ratio { display: flex; align-items: center; gap: 6px; }
+.ratio output { min-width: 5ch; text-align: center; border: 1px solid var(--ink); padding: 2px 6px; font-variant-numeric: tabular-nums; }
+.ratio button { padding: 2px 9px; }
+.hint { color: var(--label); font-size: 11px; }
+footer { border-top: 1px solid var(--rule); padding-top: 12px; color: var(--label); font-size: 11px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inherit; color: var(--ink); }
+#rec.blink { animation: blink .5s steps(1) infinite; }
+@keyframes blink { 50% { background: none; color: var(--ink); } }
+@media (prefers-reduced-motion: reduce) { #rec.blink { animation: none; } }
+@media (max-width: 860px) {
+  .main, .lower { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px), (pointer: coarse) {
+  .keys { display: none; }
+}
+@media (max-width: 560px) {
+  .word { display: none; }
+  header { gap: 8px; }
+  header button { padding: 6px 8px; }
+  .msg b { margin-right: 4px; }
+  header.saying .pname, header.saying #modetag { display: none; }
+  .msg { text-align: left; }
+}
+@media (max-width: 420px) {
+  .knobs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fn { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span class="word">SKREWELL</span>
+    <span class="slotbox" id="slotno">01</span>
+    <span class="pname" id="pname">Miro vs. Mondrian</span>
+    <span class="tag" id="modetag">IQ</span>
+    <span class="msg" id="msg" aria-live="polite"></span>
+    <button id="play" title="Start / stop (Space)">Play</button>
+    <button id="rec" title="Record moves, loop, overdub (R). Hold 1 s: clear">Rec</button>
+  </header>
+
+  <section class="main">
+    <div class="scopewrap">
+      <canvas id="scope" width="480" height="480" aria-label="Lissajous scope of the eight channels"></canvas>
+      <div class="scopehint" id="scopehint">Press play</div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <span class="lbl">Mode</span>
+        <div class="seg" id="modes">
+          <button data-m="0" title="Implant Quad (Z)">Implant Quad</button>
+          <button data-m="1" title="Xung Tekh (X)">Xung Tekh</button>
+          <button data-m="2" title="Subtotal (C)">Subtotal</button>
+        </div>
+      </div>
+      <div class="fn" id="fns"></div>
+      <div class="barhead">
+        <span><span class="lbl">Channel</span> <span class="big" id="chan">1</span></span>
+        <span class="big" id="fnval">0</span>
+      </div>
+      <canvas id="bars" width="840" height="400" aria-label="Eight channel bars: drag to set"></canvas>
+      <div class="row">
+        <span class="lbl">Edit</span>
+        <div class="seg" id="edits">
+          <button data-e="0" title="One channel (A)">Draw</button>
+          <button data-e="1" title="All eight, folding at the ends (S)">Wrap</button>
+          <button data-e="2" title="Scatter all eight (D)">Rand</button>
+        </div>
+        <span class="spacer"></span>
+        <button id="rnd" title="Randomise this function (?)">Randomise</button>
+        <button id="rndall" title="Randomise every function">All</button>
+      </div>
+      <div class="knobs" id="knobs"></div>
+    </div>
+  </section>
+
+  <section class="lower">
+    <div class="card">
+      <h2><span class="k">SLOTS</span><span id="octlbl">17–32</span><span class="spacer"></span></h2>
+      <div class="row">
+        <div class="octs" id="octs"></div>
+        <span class="spacer"></span>
+        <button id="save" title="Arm, then click a slot to store into it">Save</button>
+      </div>
+      <div class="slots" id="slots"></div>
+      <div class="hint" id="slothint">Click: recall. Save, then a slot: store. Hold a slot 4 s: its original preset.</div>
+    </div>
+
+    <div class="panel">
+      <div class="card">
+        <h2><span class="k">FX</span>Reverb · send</h2>
+        <div class="fx" id="verb"></div>
+      </div>
+      <div class="card">
+        <h2><span class="k">GLO</span>Glue compressor<span class="spacer"></span>
+          <span class="ratio"><button id="rdn" aria-label="Lower ratio">−</button><output id="ratio">4:1</output><button id="rup" aria-label="Raise ratio">+</button></span>
+        </h2>
+        <div class="fx" id="glue"></div>
+        <div class="row"><span class="lbl">Reduction</span><div class="meter" id="meter"></div><span class="spacer"></span><span class="hint" id="store">Saved in this browser</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span class="keys"><kbd>Space</kbd> play · <kbd>R</kbd> rec · <kbd>1</kbd>–<kbd>8</kbd> function · <kbd>←</kbd><kbd>→</kbd> channel · <kbd>↑</kbd><kbd>↓</kbd> value · <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd> mode · <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> edit</span>
+    <span>Skrewell by Lazyfish (Alexander Kononov), for Reaktor 5 · this version by Shai Levy</span>
+  </footer>
+</div>
+
+<script id="wasm" type="application/octet-stream">__WASM__</script>
+<script id="worklet" type="text/plain">
+class SkrewellProc extends AudioWorkletProcessor {
+  constructor(o) {
+    super();
+    this.ready = false; this.q = []; this.run = false; this.gain = 0; this.vol = 0.8; this.blk = 0;
+    this.sbuf = new Float32Array(4 * 64 * 16); this.sn = 0;
+    this.port.onmessage = (e) => this.ready ? this.cmd(e.data) : this.q.push(e.data);
+    WebAssembly.instantiate(o.processorOptions.bytes, {}).then((r) => {
+      this.w = r.instance.exports;
+      this.w.init(sampleRate);
+      this.ready = true;
+      for (const m of this.q) this.cmd(m);
+      this.q = [];
+    });
+  }
+  dv() { return new DataView(this.w.memory.buffer, this.w.patch_ptr(), this.w.patch_size()); }
+  cmd(m) {
+    const w = this.w;
+    switch (m.c) {
+      case 'run': this.run = m.on; break;
+      case 'vol': this.vol = m.x; break;
+      case 'pf': this.dv().setFloat32(m.off, m.x, true); break;
+      case 'pm': w.set_mode(m.m); break;
+      case 'patch': new Uint8Array(w.memory.buffer, w.patch_ptr(), w.patch_size()).set(m.bytes); break;
+      case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3]); break;
+      case 'glue': w.set_glue(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4]); break;
+    }
+  }
+  process(ins, outs) {
+    const o = outs[0], L = o[0], R = o[1] || o[0], n = L.length;
+    if (!this.ready || (!this.run && this.gain < 1e-4)) { this.gain = 0; L.fill(0); if (R !== L) R.fill(0); return true; }
+    const w = this.w;
+    w.render(n);
+    const mem = w.memory.buffer;
+    const oL = new Float32Array(mem, w.out_l(), n), oR = new Float32Array(mem, w.out_r(), n);
+    const tgt = this.run ? 1 : 0;
+    for (let i = 0; i < n; i++) {
+      this.gain += (tgt - this.gain) * 0.002;
+      const g = this.gain * this.vol;
+      L[i] = oL[i] * g; if (R !== L) R[i] = oR[i] * g;
+    }
+    const sc = new Float32Array(mem, w.scope_ptr(), n * 16);
+    for (let i = 0; i < n; i += 2) { this.sbuf.set(sc.subarray(i * 16, i * 16 + 16), this.sn); this.sn += 16; }
+    if (this.sn >= this.sbuf.length) {
+      this.port.postMessage({ c: 'scope', pts: this.sbuf, g: w.glue_gain() }, [this.sbuf.buffer]);
+      this.sbuf = new Float32Array(4 * 64 * 16); this.sn = 0;
+    }
+    return true;
+  }
+}
+registerProcessor('skrewell', SkrewellProc);
+</script>
+
+<script>
+'use strict';
+/* ---------- the engine's data, read in this page from its own copy of the module ---------- */
+const WASM = Uint8Array.from(atob(document.getElementById('wasm').textContent.trim()), (c) => c.charCodeAt(0));
+let W = null;                                   /* main-thread instance: bank presets and names only */
+const PATCH_N = 440, OFF_BAR = 4, OFF_KNOB = 260;
+const BANK = [], BANK_NAMES = [];
+const MODE_NAME = ['IMPLANT QUAD', 'XUNG TEKH', 'SUBTOTAL'], MODE_TAG = ['IQ', 'XT', 'ST'];
+const FN_LIST = [[0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 6, 7]];
+function fnName(m, f) {
+  if (f === 4) return m === 0 ? 'HIGH PASS' : 'FILTER CUTOFF';
+  if (f === 5) return m === 0 ? 'LOW PASS' : 'LOW-BAND-HIGH';
+  return ['OSC FREQ', 'FREQ MOD', 'OSC AMP', 'AMP MOD', '', '', 'DELAY', 'FEEDBACK'][f];
+}
+const KNOB_NAME = ['OSC', 'FILTER', 'DELAY', 'FLOW'];
+const P_KNOB0 = 64, P_MODE = 68, P_VERB0 = 69, P_GLUE0 = 73, P_N = 77;
+const NSLOTS = 96, NOCT = 6;
+
+/* ---------- state ---------- */
+const S = {
+  patch: new Uint8Array(PATCH_N), dv: null,
+  verb: [0.6, 0.45, 0.5, 0.25], glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
+  fn: 0, chan: 0, edit: 0, oct: 0, slot: 0, armed: false,
+  slots: new Array(NSLOTS).fill(null),          /* the player's: {name, patch, loop} */
+  running: false, gr: 1, vol: 0.8,
+};
+S.dv = new DataView(S.patch.buffer);
+let node = null, ctx = null;
+
+/* ---------- parameters (the firmware's ids) ---------- */
+function pget(id) {
+  if (id < P_KNOB0) return S.dv.getFloat32(OFF_BAR + id * 4, true);
+  if (id < P_MODE) return S.dv.getFloat32(OFF_KNOB + (id - P_KNOB0) * 4, true);
+  if (id === P_MODE) return S.patch[0] * 0.5;
+  if (id < P_GLUE0) return S.verb[id - P_VERB0];
+  return S.glue[id - P_GLUE0];
+}
+const clamp01 = (x) => x < 0 ? 0 : x > 1 ? 1 : x;
+function post(m) { if (node) node.port.postMessage(m); }
+function papply(id, v) {
+  v = clamp01(v);
+  if (id < P_KNOB0) { S.dv.setFloat32(OFF_BAR + id * 4, v, true); post({ c: 'pf', off: OFF_BAR + id * 4, x: v }); }
+  else if (id < P_MODE) { S.dv.setFloat32(OFF_KNOB + (id - P_KNOB0) * 4, v, true); post({ c: 'pf', off: OFF_KNOB + (id - P_KNOB0) * 4, x: v }); }
+  else if (id === P_MODE) { const m = Math.round(v * 2); S.patch[0] = m; post({ c: 'pm', m }); fnClamp(); }
+  else if (id < P_GLUE0) { S.verb[id - P_VERB0] = v; verbApply(); settingsDirty(); }
+  else { S.glue[id - P_GLUE0] = v; glueApply(); settingsDirty(); }
+  dirty = true;
+}
+function pset(id, v) { const was = pget(id); papply(id, v); recNote(id, was, clamp01(v)); }
+function verbApply() { post({ c: 'verb', a: S.verb.slice() }); }
+function glueApply() {
+  const g = S.glue;
+  post({ c: 'glue', a: [g[0] * -36, S.ratio, 50 * Math.pow(2, g[2] * 4.3219), g[1] * 18, g[3]] });
+}
+function loadPatch(bytes) { S.patch.set(bytes); post({ c: 'patch', bytes: new Uint8Array(bytes) }); fnClamp(); dirty = true; }
+function curFn() { return FN_LIST[S.patch[0]][S.fn]; }
+function fnClamp() { if (S.fn >= FN_LIST[S.patch[0]].length) S.fn = FN_LIST[S.patch[0]].length - 1; }
+
+/* ---------- messages ---------- */
+let msgT = 0;
+function say(what, words) {
+  const m = document.getElementById('msg');
+  m.innerHTML = ''; const b = document.createElement('b'); b.textContent = what; m.append(b, document.createTextNode(words || ''));
+  m.parentElement.classList.add('saying');                /* (on a phone the message takes the name's place) */
+  clearTimeout(msgT); msgT = setTimeout(() => { m.innerHTML = ''; m.parentElement.classList.remove('saying'); }, 2400);
+}
+
+/* ---------- motion recorder (the firmware's, in milliseconds) ---------- */
+const REC_MAX = 8000;
+const R = { state: 0, ev: [], t0: 0, len: 0, last: -1, touch: new Float64Array(P_N), has: new Uint8Array(P_N) };
+const now = () => performance.now();
+function recInsert(t, id, v) {
+  if (R.ev.length >= REC_MAX) return;
+  let i = R.ev.length;
+  while (i > 0 && R.ev[i - 1][0] > t) i--;
+  R.ev.splice(i, 0, [t, id, Math.round(clamp01(v) * 65535)]);
+}
+function recNote(id, was, v) {
+  const t = now();
+  if (R.state === 2 || R.state === 3) R.touch[id] = t + 250;
+  if (R.state !== 1 && R.state !== 3) return;
+  if (!R.has[id]) { recInsert(0, id, was); R.has[id] = 1; }
+  recInsert(R.state === 1 ? t - R.t0 : (t - R.t0) % R.len, id, v);
+}
+function recStartLoop(len) {
+  R.len = Math.max(100, len); R.t0 = now(); R.last = -1; R.touch.fill(0); R.has.fill(0);
+  for (const e of R.ev) R.has[e[1]] = 1;
+  R.state = 2;
+}
+function recClear() { R.state = 0; R.ev = []; R.has.fill(0); }
+function recPress() {
+  const t = now();
+  if (R.state === 0) { R.ev = []; R.has.fill(0); R.t0 = t; R.state = 1; say('REC', 'MOVES'); }
+  else if (R.state === 1) { recStartLoop(t - R.t0); say('LOOP', 'PLAYING'); }
+  else if (R.state === 2) { R.state = 3; say('DUB', 'OVERDUB ON'); }
+  else { R.state = 2; say('LOOP', 'OVERDUB OFF'); }
+  recUi();
+}
+function recPlay() {
+  if (R.state !== 2 && R.state !== 3) return;
+  const t = now(), pos = (t - R.t0) % R.len;
+  for (let i = 0; i < R.ev.length;) {
+    const [et, id, v] = R.ev[i];
+    const inw = pos >= R.last ? (et > R.last && et <= pos) : (et > R.last || et <= pos);
+    if (inw && R.touch[id] > t) {
+      if (R.state === 3) { R.ev.splice(i, 1); continue; }
+      i++; continue;
+    }
+    if (inw) papply(id, v / 65535);
+    i++;
+  }
+  R.last = pos;
+}
+function recUi() {
+  const b = document.getElementById('rec');
+  b.textContent = ['Rec', 'Rec', 'Loop', 'Dub'][R.state];
+  b.classList.toggle('on', R.state !== 0);
+  b.classList.toggle('blink', R.state === 1 || R.state === 3);
+}
+
+/* ---------- slots ---------- */
+function slotFilled(k) { return !!S.slots[k] || k < BANK.length; }
+function slotName(k) {
+  const s = S.slots[k];
+  if (s) return s.name || (k < BANK.length ? BANK_NAMES[k] : 'SLOT ' + (k + 1));
+  return k < BANK.length ? BANK_NAMES[k] : 'EMPTY';
+}
+function shortName(n) { const i = n.indexOf(' - '); const s = (i > 0 ? n.slice(0, i) : n).trim(); return s || 'UNTITLED'; }
+function samePatch(a, b) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
+function makeName(skip) {
+  const C = 'BDGKLMNRSTVZ', V = 'AEIOU', E = 'KNRSTX', r = (n) => Math.floor(Math.random() * n);
+  for (let tries = 0; tries < 16; tries++) {
+    let s = '', syl = 2 + r(2);
+    for (let i = 0; i < syl && s.length + 2 <= 8; i++) {
+      s += C[r(C.length)] + V[r(V.length)];
+      if (s.length < 8 && r(3) === 0 && (i + 1 === syl || s.length + 3 <= 8)) s += E[r(E.length)];
+    }
+    if (!S.slots.some((x, k) => x && k !== skip && x.name === s)) return s;
+  }
+  return 'SLOT';
+}
+const recallWas = new Float32Array(P_VERB0);
+function loopFollowsRecall(loop) {
+  if (loop) { R.ev = loop.ev.map((e) => e.slice()); recStartLoop(loop.len); recUi(); return; }
+  if (R.state === 1 || R.state === 3) { for (let id = 0; id < P_VERB0; id++) if (pget(id) !== recallWas[id]) recNote(id, recallWas[id], pget(id)); }
+  else if (R.state === 2) { recClear(); recUi(); }
+}
+function recall(k, original) {
+  const mine = S.slots[k];
+  if (!original && !mine && k >= BANK.length) { say('EMPTY', 'SLOT'); return; }
+  if (original && k >= BANK.length) { say('NO ORIGINAL', 'AN EMPTY SLOT'); return; }
+  for (let id = 0; id < P_VERB0; id++) recallWas[id] = pget(id);
+  const p = (!original && mine) ? mine.patch : BANK[k];
+  loadPatch(p);
+  S.slot = k;
+  loopFollowsRecall(!original && mine ? mine.loop : null);
+  say(original ? 'ORIGINAL' : (mine && mine.loop ? 'LOOP' : 'SNAPSHOT'), shortName(original ? BANK_NAMES[k] : slotName(k)));
+  slotsUi(); settingsDirty();
+}
+function store(k) {
+  if (R.state === 1) recStartLoop(now() - R.t0);
+  const loop = (R.state === 2 || R.state === 3) && R.ev.length ? { len: R.len, ev: R.ev.map((e) => e.slice()) } : null;
+  const old = S.slots[k];
+  let name;
+  if (k < BANK.length && samePatch(S.patch, BANK[k])) name = '';
+  else if (old && old.name) name = old.name;
+  else name = makeName(k);
+  S.slots[k] = { name, patch: new Uint8Array(S.patch), loop };
+  S.slot = k;
+  say(loop ? 'STORED + LOOP' : 'STORED', slotName(k));
+  slotsUi(); recUi(); saveSlot(k); settingsDirty();
+}
+
+/* ---------- storage: the viewer's own space in this page's database, or this browser ---------- */
+let DB = null, UID = null, settingsT = 0;
+const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); };
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+function slotDoc(k) { const s = S.slots[k]; return s ? { name: s.name, patch: b64(s.patch), loop: s.loop } : null; }
+function settingsDoc() { return { verb: S.verb, glue: S.glue, ratio: S.ratio, slot: S.slot, oct: S.oct, vol: S.vol }; }
+function lsSet(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+async function saveSlot(k) {
+  const d = slotDoc(k);
+  lsSet('skrewell.slot.' + k, d);
+  if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc('slot-' + k); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} }
+}
+function settingsDirty() {
+  clearTimeout(settingsT);
+  settingsT = setTimeout(async () => {
+    const d = settingsDoc(); lsSet('skrewell.settings', d);
+    if (DB && UID) { try { await DB.collection('data/users/' + UID).doc('settings').set(d); } catch (e) {} }
+  }, 1200);
+}
+function applySlotDoc(k, d) {
+  if (!d || typeof d.patch !== 'string') return;
+  try {
+    const p = unb64(d.patch); if (p.length !== PATCH_N) return;
+    const loop = d.loop && Array.isArray(d.loop.ev) && d.loop.len > 0 ? { len: +d.loop.len, ev: d.loop.ev.filter((e) => Array.isArray(e) && e.length === 3 && e[1] >= 0 && e[1] < P_N).slice(0, REC_MAX) } : null;
+    S.slots[k] = { name: typeof d.name === 'string' ? d.name.slice(0, 8).toUpperCase() : '', patch: p, loop };
+  } catch (e) {}
+}
+function applySettingsDoc(d) {
+  if (!d) return;
+  if (Array.isArray(d.verb) && d.verb.length === 4) S.verb = d.verb.map((x) => clamp01(+x || 0));
+  if (Array.isArray(d.glue) && d.glue.length === 4) S.glue = d.glue.map((x) => clamp01(+x || 0));
+  if (d.ratio >= 2 && d.ratio <= 10) S.ratio = Math.round(d.ratio * 2) / 2;
+  if (d.slot >= 0 && d.slot < NSLOTS) S.slot = d.slot | 0;
+  if (d.oct >= 0 && d.oct < NOCT) S.oct = d.oct | 0;
+  if (d.vol >= 0 && d.vol <= 1) S.vol = +d.vol;
+}
+function loadLocal() {
+  for (let k = 0; k < NSLOTS; k++) applySlotDoc(k, lsGet('skrewell.slot.' + k));
+  applySettingsDoc(lsGet('skrewell.settings'));
+}
+async function connectDb() {
+  try {
+    if (!window.claude || !window.claude.use) return;
+    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+    if (!db || !user) return;
+    const id = await user.id();
+    if (!id) return;
+    const col = db.collection('data/users/' + id);
+    const snap = await Promise.race([col.get(), new Promise((_, rej) => setTimeout(() => rej(0), 10000))]);
+    DB = db; UID = id;
+    if (snap.empty) {                               /* first visit with an account: bring this browser's slots along */
+      for (let k = 0; k < NSLOTS; k++) if (S.slots[k]) await saveSlot(k);
+    } else {
+      S.slots.fill(null);
+      for (const d of snap.docs) {
+        if (d.id === 'settings') applySettingsDoc(d.data());
+        else if (d.id.startsWith('slot-')) applySlotDoc(parseInt(d.id.slice(5), 10), d.data());
+      }
+      verbApply(); glueApply(); buildFx(); octUi(); slotsUi();
+    }
+    document.getElementById('store').textContent = 'Saved in your account';
+  } catch (e) {}
+}
+
+/* ---------- audio ---------- */
+async function startAudio() {
+  if (ctx) return true;
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+    const url = URL.createObjectURL(new Blob([document.getElementById('worklet').textContent], { type: 'application/javascript' }));
+    await ctx.audioWorklet.addModule(url);
+    node = new AudioWorkletNode(ctx, 'skrewell', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { bytes: WASM } });
+    node.connect(ctx.destination);
+    node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts); S.gr = e.data.g; } };
+    loadPatch(S.patch); verbApply(); glueApply(); post({ c: 'vol', x: S.vol });
+    return true;
+  } catch (e) {
+    console.error('audio', e); say('AUDIO', 'NOT AVAILABLE IN THIS BROWSER');
+    ctx = null; node = null; return false;
+  }
+}
+async function togglePlay() {
+  if (!(await startAudio())) return;
+  if (ctx.state !== 'running') { try { await ctx.resume(); } catch (e) {} }
+  S.running = !S.running;
+  post({ c: 'run', on: S.running });
+  document.getElementById('play').classList.toggle('on', S.running);
+  document.getElementById('play').textContent = S.running ? 'Stop' : 'Play';
+  document.getElementById('scopehint').hidden = S.running;
+  say(S.running ? 'PLAY' : 'STOP', '');
+}
+
+/* ---------- the scope: a persistence image, like the FM-1's ---------- */
+const SC = 480, sc = document.getElementById('scope'), sctx = sc.getContext('2d');
+const lum = new Float32Array(SC * SC), img = sctx.createImageData(SC, SC);
+let pending = [];
+function scopeFeed(pts) { pending.push(pts); if (pending.length > 8) pending.shift(); }
+function scopeDraw() {
+  for (let i = 0; i < lum.length; i++) lum[i] *= 0.82;
+  for (const pts of pending) {
+    for (let i = 0; i < pts.length; i += 2) {
+      const x = Math.round((pts[i] * 0.92 / 1.2 + 1) * 0.5 * (SC - 1)), y = Math.round((1 - pts[i + 1] * 0.92 / 1.2) * 0.5 * (SC - 1));
+      if (x >= 0 && x < SC && y >= 0 && y < SC) { const j = y * SC + x; lum[j] = Math.min(1, lum[j] + 0.5); }
+    }
+  }
+  pending = [];
+  const d = img.data;
+  for (let i = 0, j = 0; i < lum.length; i++, j += 4) { const v = lum[i] * 255; d[j] = d[j + 1] = d[j + 2] = v; d[j + 3] = 255; }
+  sctx.putImageData(img, 0, 0);
+}
+
+/* ---------- the bars ---------- */
+const bc = document.getElementById('bars'), bctx = bc.getContext('2d');
+function barsDraw() {
+  const W = bc.width, H = bc.height, f = curFn(), gap = 14, bw = (W - gap * 9) / 8, top = 12, bot = H - 46;
+  bctx.fillStyle = '#000'; bctx.fillRect(0, 0, W, H);
+  bctx.font = '500 22px ' + getComputedStyle(document.body).fontFamily;
+  bctx.textAlign = 'center'; bctx.textBaseline = 'middle';
+  for (let v = 0; v < 8; v++) {
+    const x = gap + v * (bw + gap), val = pget(f * 8 + v), h = (bot - top) * val;
+    const sel = S.edit === 0 && v === S.chan, all = S.edit !== 0;
+    bctx.fillStyle = sel ? '#fff' : '#5e5e5e';
+    bctx.fillRect(x + 6, bot - h, bw - 12, h);
+    bctx.strokeStyle = sel || all ? '#fff' : '#5a5a5a'; bctx.lineWidth = 2;
+    bctx.strokeRect(x + 1, top, bw - 2, bot - top);
+    if (sel) { bctx.fillStyle = '#fff'; bctx.fillRect(x + bw / 2 - 16, bot + 10, 32, 28); bctx.fillStyle = '#000'; }
+    else bctx.fillStyle = '#9a9a9a';
+    bctx.fillText(String(v + 1), x + bw / 2, bot + 25);
+  }
+}
+let drag = null;
+function barAt(e) {
+  const r = bc.getBoundingClientRect(), sx = bc.width / r.width;
+  const x = (e.clientX - r.left) * sx, y = (e.clientY - r.top) * (bc.height / r.height);
+  const gap = 14, bw = (bc.width - gap * 9) / 8, top = 12, bot = bc.height - 46;
+  return { v: Math.max(0, Math.min(7, Math.floor((x - gap / 2) / (bw + gap)))), val: clamp01((bot - y) / (bot - top)), y };
+}
+function fold01(x) { x = x - 2 * Math.floor(x * 0.5); return x > 1 ? 2 - x : x; }
+bc.addEventListener('pointerdown', (e) => {
+  bc.setPointerCapture(e.pointerId);
+  const a = barAt(e), f = curFn();
+  drag = { y: a.y, last: a.v };
+  if (S.edit === 0) { S.chan = a.v; pset(f * 8 + a.v, a.val); }
+  else if (S.edit === 2) scatter(0.06);
+});
+bc.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const a = barAt(e), f = curFn();
+  if (S.edit === 0) {
+    const lo = Math.min(drag.last, a.v), hi = Math.max(drag.last, a.v);   /* a sweep draws every bar it crosses */
+    for (let v = lo; v <= hi; v++) pset(f * 8 + v, a.val);
+    S.chan = a.v; drag.last = a.v;
+  } else {
+    const dy = (drag.y - a.y) / (bc.height - 58); drag.y = a.y;
+    if (S.edit === 1) for (let v = 0; v < 8; v++) pset(f * 8 + v, fold01(pget(f * 8 + v) + dy));
+    else if (Math.abs(dy) > 0) scatter(Math.abs(dy) * 2);
+  }
+});
+bc.addEventListener('pointerup', () => { drag = null; });
+bc.addEventListener('pointercancel', () => { drag = null; });
+function scatter(amt) { const f = curFn(); for (let v = 0; v < 8; v++) pset(f * 8 + v, fold01(pget(f * 8 + v) + amt * (Math.random() * 2 - 1))); }
+function stepValue(d) {
+  const f = curFn();
+  if (S.edit === 0) pset(f * 8 + S.chan, pget(f * 8 + S.chan) + d);
+  else if (S.edit === 1) for (let v = 0; v < 8; v++) pset(f * 8 + v, fold01(pget(f * 8 + v) + d));
+  else scatter(Math.abs(d) * 2);
+}
+function randomise(all) {
+  const list = all ? FN_LIST[S.patch[0]] : [curFn()];
+  for (const f of list) for (let v = 0; v < 8; v++) pset(f * 8 + v, Math.random());
+  say('RANDOM', all ? 'ALL FUNCTIONS' : fnName(S.patch[0], curFn()));
+}
+
+/* ---------- knobs ---------- */
+function knobSvg(v) {
+  const a0 = -225, a1 = 45, a = a0 + (a1 - a0) * v, r = 22, c = 28;
+  const pt = (deg) => [c + r * Math.cos(deg * Math.PI / 180), c + r * Math.sin(deg * Math.PI / 180)];
+  const [x0, y0] = pt(a0), [x1, y1] = pt(a), [xe, ye] = pt(a1);
+  const big = (a - a0) > 180 ? 1 : 0;
+  return `<svg viewBox="0 0 56 56" aria-hidden="true"><path d="M${x0} ${y0} A${r} ${r} 0 1 1 ${xe} ${ye}" fill="none" stroke="#3a3a3a" stroke-width="3"/>` +
+    (v > 0.001 ? `<path d="M${x0} ${y0} A${r} ${r} 0 ${big} 1 ${x1} ${y1}" fill="none" stroke="#fff" stroke-width="3"/>` : '') +
+    `<line x1="${c}" y1="${c}" x2="${x1}" y2="${y1}" stroke="#fff" stroke-width="2"/></svg>`;
+}
+const knobEls = [];
+function buildKnobs() {
+  const box = document.getElementById('knobs');
+  const defs = KNOB_NAME.map((n, k) => ({ n, get: () => pget(P_KNOB0 + k), set: (x) => pset(P_KNOB0 + k, x), fmt: (x) => Math.round(x * 100) }));
+  defs.push({ n: 'VOLUME', get: () => S.vol, set: (x) => { S.vol = clamp01(x); post({ c: 'vol', x: S.vol }); settingsDirty(); }, fmt: (x) => Math.round(x * 100) });
+  for (const d of defs) {
+    const el = document.createElement('div');
+    el.className = 'knob'; el.tabIndex = 0; el.setAttribute('role', 'slider'); el.setAttribute('aria-label', d.n);
+    el.innerHTML = `<div class="g"></div><span class="lbl">${d.n}</span><span class="v"></span>`;
+    let y0 = 0, v0 = 0;
+    el.addEventListener('pointerdown', (e) => { el.setPointerCapture(e.pointerId); y0 = e.clientY; v0 = d.get(); el.dataset.drag = '1'; });
+    el.addEventListener('pointermove', (e) => { if (!el.dataset.drag) return; d.set(v0 + (y0 - e.clientY) / 220); });
+    el.addEventListener('pointerup', () => { delete el.dataset.drag; });
+    el.addEventListener('pointercancel', () => { delete el.dataset.drag; });
+    el.addEventListener('wheel', (e) => { e.preventDefault(); d.set(d.get() + (e.deltaY < 0 ? 0.03 : -0.03)); }, { passive: false });
+    el.addEventListener('keydown', (e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { d.set(d.get() + 0.03); e.preventDefault(); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { d.set(d.get() - 0.03); e.preventDefault(); } });
+    box.append(el);
+    knobEls.push({ el, d, last: -1 });
+  }
+}
+function knobsUi() {
+  for (const k of knobEls) {
+    const v = k.d.get();
+    if (Math.abs(v - k.last) < 1e-4) continue;
+    k.last = v;
+    k.el.querySelector('.g').innerHTML = knobSvg(v);
+    k.el.querySelector('.v').textContent = k.d.fmt(v);
+    k.el.setAttribute('aria-valuenow', k.d.fmt(v));
+  }
+}
+
+/* ---------- FX and GLO ---------- */
+const VERB_DEF = [
+  ['SIZE', (x) => Math.round(x * 100)], ['DECAY', (x) => (0.3 * Math.pow(40, x)).toFixed(1) + ' S'],
+  ['DAMP', (x) => Math.round(x * 100)], ['SEND', (x) => Math.round(x * 100)]];
+const GLUE_DEF = [
+  ['THRESHOLD', (x) => (x * -36).toFixed(1) + ' DB'], ['MAKEUP', (x) => '+' + (x * 18).toFixed(1) + ' DB'],
+  ['RELEASE', (x) => Math.round(50 * Math.pow(2, x * 4.3219)) + ' MS'], ['DRY/WET', (x) => Math.round(x * 100)]];
+function buildFx() {
+  for (const [box, defs, base] of [['verb', VERB_DEF, P_VERB0], ['glue', GLUE_DEF, P_GLUE0]]) {
+    const el = document.getElementById(box); el.innerHTML = '';
+    defs.forEach(([n, fmt], i) => {
+      const row = document.createElement('label'); row.className = 'fxrow';
+      const id = box + i;
+      row.innerHTML = `<span class="lbl">${n}</span><input type="range" id="${id}" min="0" max="1000" aria-label="${n}"><output for="${id}"></output>`;
+      const inp = row.querySelector('input'), out = row.querySelector('output');
+      inp.value = Math.round(pget(base + i) * 1000); out.textContent = fmt(pget(base + i));
+      inp.addEventListener('input', () => { pset(base + i, inp.value / 1000); out.textContent = fmt(pget(base + i)); });
+      row.sync = () => { const v = pget(base + i); if (document.activeElement !== inp) inp.value = Math.round(v * 1000); out.textContent = fmt(v); };
+      el.append(row);
+    });
+  }
+  document.getElementById('ratio').textContent = fmtRatio();
+}
+const fmtRatio = () => (S.ratio % 1 ? S.ratio.toFixed(1) : S.ratio) + ':1';
+function ratioStep(d) { S.ratio = Math.min(10, Math.max(2, S.ratio + d)); glueApply(); document.getElementById('ratio').textContent = fmtRatio(); settingsDirty(); }
+function fxUi() { document.querySelectorAll('.fxrow').forEach((r) => r.sync && r.sync()); }
+const meterEls = [];
+function buildMeter() { const m = document.getElementById('meter'); for (let i = 0; i < 12; i++) { const s = document.createElement('i'); m.append(s); meterEls.push(s); } }
+function meterUi() {
+  const db = S.gr > 0 ? -20 * Math.log10(S.gr) : 0;
+  meterEls.forEach((s, i) => s.classList.toggle('on', S.running && db > i * 1.5 + 0.3));
+}
+
+/* ---------- functions, modes, edit ---------- */
+function fnsUi() {
+  const box = document.getElementById('fns'), m = S.patch[0], list = FN_LIST[m];
+  if (box.childElementCount !== 8) {
+    box.innerHTML = '';
+    for (let i = 0; i < 8; i++) { const b = document.createElement('button'); b.dataset.i = i; box.append(b); b.addEventListener('click', () => { S.fn = i; dirty = true; }); }
+  }
+  [...box.children].forEach((b, i) => {
+    b.hidden = i >= list.length;
+    if (i < list.length) { b.innerHTML = `<span>${i + 1}</span>${fnName(m, list[i])}`; b.classList.toggle('on', i === S.fn); }
+  });
+  document.querySelectorAll('#modes button').forEach((b) => b.classList.toggle('on', +b.dataset.m === m));
+  document.querySelectorAll('#edits button').forEach((b) => b.classList.toggle('on', +b.dataset.e === S.edit));
+  document.getElementById('chan').textContent = S.edit === 0 ? String(S.chan + 1) : ['', 'ALL · WRAP', 'ALL · RAND'][S.edit];
+  document.getElementById('fnval').textContent = S.edit === 0 ? Math.round(pget(curFn() * 8 + S.chan) * 100) : fnName(m, curFn());
+  document.getElementById('modetag').textContent = MODE_TAG[m];
+  document.getElementById('modetag').title = MODE_NAME[m];
+}
+function headerUi() {
+  document.getElementById('slotno').textContent = String(S.slot + 1).padStart(2, '0');
+  document.getElementById('pname').textContent = shortName(slotName(S.slot));
+}
+
+/* ---------- slots ui ---------- */
+function octUi() {
+  const box = document.getElementById('octs');
+  if (!box.childElementCount) for (let o = 0; o < NOCT; o++) { const b = document.createElement('button'); b.textContent = o + 1; b.title = 'Octave ' + (o + 1) + ': slots ' + (o * 16 + 1) + '–' + (o * 16 + 16); b.addEventListener('click', () => { S.oct = o; octUi(); slotsUi(); settingsDirty(); }); box.append(b); }
+  [...box.children].forEach((b, o) => b.classList.toggle('on', o === S.oct));
+  document.getElementById('octlbl').textContent = (S.oct * 16 + 1) + '–' + (S.oct * 16 + 16);
+}
+function slotsUi() {
+  const box = document.getElementById('slots');
+  if (!box.childElementCount) {
+    for (let i = 0; i < 16; i++) {
+      const b = document.createElement('button'); b.className = 'slot';
+      b.innerHTML = '<span class="n"></span><span class="nm"></span><span class="l" hidden>L</span><span class="hold"></span>';
+      let holdT = 0, raf = 0, t0 = 0;
+      const stop = () => { clearTimeout(holdT); cancelAnimationFrame(raf); b.querySelector('.hold').style.width = '0'; };
+      b.addEventListener('pointerdown', (e) => {
+        if (e.button) return;
+        const k = S.oct * 16 + i;
+        if (S.armed) { store(k); S.armed = false; saveUi(); return; }
+        recall(k, false);
+        t0 = performance.now();
+        const grow = () => { b.querySelector('.hold').style.width = Math.min(100, (performance.now() - t0) / 40) + '%'; raf = requestAnimationFrame(grow); };
+        if (k < BANK.length) { raf = requestAnimationFrame(grow); holdT = setTimeout(() => { stop(); recall(k, true); }, 4000); }
+      });
+      b.addEventListener('pointerup', stop); b.addEventListener('pointerleave', stop); b.addEventListener('pointercancel', stop);
+      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const k = S.oct * 16 + i; if (S.armed) { store(k); S.armed = false; saveUi(); } else recall(k, false); } });
+      box.append(b);
+    }
+  }
+  [...box.children].forEach((b, i) => {
+    const k = S.oct * 16 + i, filled = slotFilled(k);
+    b.querySelector('.n').textContent = String(k + 1).padStart(2, '0');
+    b.querySelector('.nm').textContent = filled ? shortName(slotName(k)) : 'empty';
+    b.querySelector('.l').hidden = !(S.slots[k] && S.slots[k].loop);
+    b.classList.toggle('empty', !filled);
+    b.classList.toggle('cur', k === S.slot);
+    b.classList.toggle('armed', S.armed);
+    b.title = filled ? slotName(k) + (S.slots[k] ? ' (yours)' : ' (original)') : 'Empty slot';
+  });
+  headerUi();
+}
+function saveUi() {
+  const s = document.getElementById('save');
+  s.classList.toggle('on', S.armed);
+  s.textContent = S.armed ? 'Pick a slot' : 'Save';
+  slotsUi();
+}
+
+/* ---------- input ---------- */
+document.getElementById('play').addEventListener('click', togglePlay);
+(() => {
+  const b = document.getElementById('rec'); let t = 0, held = false;
+  b.addEventListener('pointerdown', () => { held = false; t = setTimeout(() => { held = true; if (R.state) { recClear(); recUi(); say('LOOP', 'CLEARED'); } }, 900); });
+  b.addEventListener('pointerup', () => { clearTimeout(t); if (!held) recPress(); });
+  b.addEventListener('pointerleave', () => clearTimeout(t));
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); recPress(); } });
+})();
+document.querySelectorAll('#modes button').forEach((b) => b.addEventListener('click', () => { pset(P_MODE, +b.dataset.m * 0.5); say('MODE', MODE_NAME[+b.dataset.m]); }));
+document.querySelectorAll('#edits button').forEach((b) => b.addEventListener('click', () => { S.edit = +b.dataset.e; dirty = true; }));
+document.getElementById('rnd').addEventListener('click', () => randomise(false));
+document.getElementById('rndall').addEventListener('click', () => randomise(true));
+document.getElementById('save').addEventListener('click', () => { S.armed = !S.armed; saveUi(); });
+document.getElementById('rdn').addEventListener('click', () => ratioStep(-0.5));
+document.getElementById('rup').addEventListener('click', () => ratioStep(0.5));
+let recKeyT = 0, recKeyHeld = false;
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest && e.target.closest('input, .knob')) return;
+  const k = e.key.toLowerCase();
+  if (e.repeat && k !== 'arrowup' && k !== 'arrowdown') return;
+  if (k === ' ') { e.preventDefault(); togglePlay(); }
+  else if (k === 'r') { recKeyHeld = false; recKeyT = setTimeout(() => { recKeyHeld = true; if (R.state) { recClear(); recUi(); say('LOOP', 'CLEARED'); } }, 900); }
+  else if (k >= '1' && k <= '8') { const i = +k - 1; if (i < FN_LIST[S.patch[0]].length) { S.fn = i; dirty = true; } }
+  else if (k === 'arrowleft') { S.chan = (S.chan + 7) % 8; dirty = true; e.preventDefault(); }
+  else if (k === 'arrowright') { S.chan = (S.chan + 1) % 8; dirty = true; e.preventDefault(); }
+  else if (k === 'arrowup') { stepValue(e.shiftKey ? 0.06 : 0.03); e.preventDefault(); }
+  else if (k === 'arrowdown') { stepValue(e.shiftKey ? -0.06 : -0.03); e.preventDefault(); }
+  else if (k === 'z' || k === 'x' || k === 'c') pset(P_MODE, 'zxc'.indexOf(k) * 0.5);
+  else if (k === 'a' || k === 's' || k === 'd') { S.edit = 'asd'.indexOf(k); dirty = true; }
+  else if (k === '?') randomise(false);
+});
+document.addEventListener('keyup', (e) => { if (e.key.toLowerCase() === 'r' && !(e.target.closest && e.target.closest('input'))) { clearTimeout(recKeyT); if (!recKeyHeld) recPress(); } });
+
+/* ---------- the frame ---------- */
+let dirty = true;
+function frame() {
+  recPlay();
+  if (S.running) scopeDraw();
+  if (dirty) { barsDraw(); fnsUi(); headerUi(); fxUi(); dirty = false; }
+  knobsUi(); meterUi();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- start ---------- */
+(async () => {
+  const r = await WebAssembly.instantiate(WASM, {});
+  W = r.instance.exports;
+  const mem = () => new Uint8Array(W.memory.buffer);
+  for (let k = 0; k < W.bank_count(); k++) {
+    BANK.push(new Uint8Array(W.memory.buffer, W.bank_ptr(k), PATCH_N).slice());
+    let s = '', p = W.bank_name(k); const m = mem(); while (m[p]) s += String.fromCharCode(m[p++]);
+    BANK_NAMES.push(s);
+  }
+  loadLocal();
+  S.patch.set(S.slots[S.slot] ? S.slots[S.slot].patch : (BANK[S.slot] || BANK[0]));
+  buildKnobs(); buildFx(); buildMeter(); octUi(); slotsUi(); recUi();
+  sctx.fillStyle = '#000'; sctx.fillRect(0, 0, SC, SC);
+  requestAnimationFrame(frame);
+  connectDb();
+})();
+</script>
+</body>
+</html>
