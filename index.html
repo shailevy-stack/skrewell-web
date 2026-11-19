@@ -25,6 +25,8 @@
   --rule: #2a2a2a;
   --faint: #6a6a6a;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --hh: 61px;                                   /* the pinned title row's height (set from the page) */
+  --ss: min(100vw, calc(100vh - var(--hh)));    /* the scope: a square, right under the title row */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -37,15 +39,15 @@ button:hover { border-color: var(--ink); }
 button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-#scope { position: fixed; z-index: 0; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(100vw, 100vh); height: min(100vw, 100vh); display: block; pointer-events: none; }
-.scopehint { position: fixed; z-index: 0; left: 0; right: 0; top: 50%; text-align: center; color: var(--label); text-transform: uppercase; letter-spacing: .12em; pointer-events: none; }
+#scope { position: fixed; z-index: 0; left: 50%; top: var(--hh); transform: translateX(-50%); width: var(--ss); height: var(--ss); display: block; pointer-events: none; }
+.scopehint { position: fixed; z-index: 0; left: 0; right: 0; top: calc(var(--hh) + var(--ss) / 2); text-align: center; color: var(--label); text-transform: uppercase; letter-spacing: .12em; pointer-events: none; }
 .scopehint[hidden] { display: none; }
 
-.app { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.app { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; padding: 0 16px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .app > * { min-width: 0; }
-.window { height: 42vh; }                       /* the scope, clear, before the controls */
+.window { height: min(var(--ss), 60vh); margin-top: -12px; }   /* the scope, clear, before the controls */
 .veil { background: var(--veil); }
-header { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-height: 44px; padding: 0 0 10px; border-bottom: 1px solid var(--rule); }
+header { position: sticky; top: 0; z-index: 3; background: var(--bg); display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-height: 44px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
 header > * { flex-shrink: 0; }
 header .pname, header .msg { flex-shrink: 1; }
 .word { font-weight: 600; font-size: 15px; letter-spacing: .28em; }
@@ -95,8 +97,10 @@ header .pname, header .msg { flex-shrink: 1; }
 .slot .hold { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; width: 0; }
 
 .fx { display: grid; gap: 8px; }
-.fxrow { display: grid; grid-template-columns: 10ch minmax(0, 1fr) 10ch; align-items: center; gap: 10px; }
-.fxrow output { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fxrow { display: grid; grid-template-columns: 9ch minmax(0, 1fr) 9ch; align-items: center; gap: 10px; }
+.fxrow > * { min-width: 0; }
+.fxrow output { text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dual { margin: 0 5px; }               /* (the thumbs stay inside the row at either end) */
 input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: none; margin: 0; touch-action: none; }
 input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--outline); }
 input[type=range]::-moz-range-track { height: 1px; background: var(--outline); }
@@ -122,7 +126,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
 @media (prefers-reduced-motion: reduce) { #rec.blink { animation: none; } }
 @media (max-width: 420px), (pointer: coarse) { .keys { display: none; } }
 @media (max-width: 560px) {
-  .app { padding: 12px; }
+  .app { padding: 0 12px 12px; }
   .word { display: none; }
   header { gap: 8px; }
   header button { padding: 6px 8px; }
@@ -131,7 +135,8 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   .msg { text-align: left; }
   .knob svg { width: 40px; height: 40px; }
   .knob .lbl { font-size: 9px; letter-spacing: .02em; }
-  .fxrow { grid-template-columns: 8ch minmax(0, 1fr) 9ch; gap: 8px; }
+  .fxrow { grid-template-columns: 8ch minmax(0, 1fr) 8ch; gap: 8px; }
+  .fxrow .lbl { font-size: 10px; letter-spacing: .04em; }
   #modes button { padding: 6px 8px; font-size: 11px; }
 }
 </style>
@@ -141,7 +146,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
 <div class="scopehint" id="scopehint">Press play</div>
 
 <div class="app">
-  <header class="veil">
+  <header>
     <span class="word">SKREWELL</span>
     <span class="slotbox" id="slotno">01</span>
     <span class="pname" id="pname">Miro vs. Mondrian</span>
@@ -681,7 +686,7 @@ function knobsUi() {
 }
 
 /* ---------- FX and GLO ---------- */
-const fmtHz = (x) => { const f = cutHz(x); return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1) + ' K' : Math.round(f) + ' HZ'; };
+const fmtHz = (x) => { const f = cutHz(x); return f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1) + 'K' : String(Math.round(f)); };   /* Hz; K = kHz */
 const fmtCut = () => (S.verb[2] <= 0.002 ? 'OFF' : fmtHz(S.verb[2])) + '–' + (S.hicut >= 0.998 ? 'OFF' : fmtHz(S.hicut));
 const GLUE_DEF = [
   ['THRESHOLD', (x) => (x * -36).toFixed(1) + ' DB'], ['MAKEUP', (x) => '+' + (x * 18).toFixed(1) + ' DB'],
@@ -697,7 +702,7 @@ function sliderRow(box, label, id, fmt, labelFn) {
 }
 function cutRow(box) {                          /* LOW CUT and HIGH CUT on one track, each end dragged */
   const row = document.createElement('div'); row.className = 'fxrow';
-  row.innerHTML = '<span class="lbl">CUT</span><div class="dual"><span class="tr"></span><span class="pass"></span>' +
+  row.innerHTML = '<span class="lbl" title="Low cut and high cut on the reverb, in Hz (K = kHz)">CUT HZ</span><div class="dual"><span class="tr"></span><span class="pass"></span>' +
     '<span class="th" data-w="lo" tabindex="0" role="slider" aria-label="Low cut"></span><span class="th" data-w="hi" tabindex="0" role="slider" aria-label="High cut"></span></div><output></output>';
   const dual = row.querySelector('.dual'), pass = row.querySelector('.pass'), lo = row.querySelector('[data-w=lo]'), hi = row.querySelector('[data-w=hi]'), out = row.querySelector('output');
   const GAPX = 0.08;
@@ -723,8 +728,8 @@ function cutRow(box) {                          /* LOW CUT and HIGH CUT on one t
   const sync = () => {
     lo.style.left = (S.verb[2] * 100) + '%'; hi.style.left = (S.hicut * 100) + '%';
     pass.style.left = (S.verb[2] * 100) + '%'; pass.style.width = ((S.hicut - S.verb[2]) * 100) + '%';
-    lo.setAttribute('aria-valuetext', S.verb[2] <= 0.002 ? 'off' : fmtHz(S.verb[2]));
-    hi.setAttribute('aria-valuetext', S.hicut >= 0.998 ? 'off' : fmtHz(S.hicut));
+    lo.setAttribute('aria-valuetext', S.verb[2] <= 0.002 ? 'off' : fmtHz(S.verb[2]) + ' Hz');
+    hi.setAttribute('aria-valuetext', S.hicut >= 0.998 ? 'off' : fmtHz(S.hicut) + ' Hz');
     out.textContent = fmtCut();
   };
   fxSync.push(sync); sync(); box.append(row);
@@ -858,6 +863,12 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => { if (e.key.toLowerCase() === 'r' && !(e.target.closest && e.target.closest('input'))) { clearTimeout(recKeyT); if (!recKeyHeld) recPress(); } });
 /* no zooming: double-tap zoom is off through touch-action: manipulation; a pinch is refused here (iOS) */
 document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+/* ---------- the pinned title row's height places the scope under it ---------- */
+function placeScope() { document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px'); }
+addEventListener('resize', placeScope);
+if (window.ResizeObserver) new ResizeObserver(placeScope).observe(document.querySelector('header'));
+placeScope();
 
 /* ---------- the frame ---------- */
 function frame() {
