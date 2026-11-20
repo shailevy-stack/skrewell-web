@@ -19,7 +19,7 @@ EXPORT(render) void w_render(unsigned n) { if (n > SKR_MAXBLK) n = SKR_MAXBLK; s
 EXPORT(out_l) float *w_out_l(void) { return outL; }
 EXPORT(out_r) float *w_out_r(void) { return outR; }
 EXPORT(scope_ptr) float *w_scope(void) { return scope; }
-/* the patch: JS reads and writes it as bytes (a snapshot) and by field */
+/* the patch: JS reads and writes it as bytes (a preset or a scene) and by field */
 EXPORT(patch_ptr) skr_patch *w_patch(void) { return &E.p; }
 EXPORT(patch_size) unsigned w_patch_size(void) { return sizeof(skr_patch); }
 EXPORT(tmp_ptr) skr_patch *w_tmp(void) { return &tmp; }

@@ -93,6 +93,10 @@ body.info .main-card, body.info .scopehint { display: none; }
 #info .modes { display: grid; gap: 6px; }
 #info .modes div { display: grid; grid-template-columns: 6ch minmax(0, 1fr); gap: 10px; }
 #info .modes b { font-weight: 500; }
+#info .modes.stack { gap: 12px; }
+#info .modes.stack div { display: block; }
+#info .modes.stack b { display: block; margin-bottom: 2px; letter-spacing: .06em; }
+#info .modes.stack span { color: var(--label); }
 .slotbox { border: 1px solid var(--ink); padding: 2px 6px; font-variant-numeric: tabular-nums; }
 .pname { font-weight: 500; text-transform: uppercase; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34ch; }
 .tag { border: 1px solid var(--outline); padding: 1px 6px; color: var(--label); }
@@ -271,6 +275,29 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h2><span class="k">INFO</span>What it is</h2>
     <p>SKREWELL is a self-playing drone and texture instrument: eight channels that modulate each other, feed back through their own delays and never quite settle. You don't play notes. You shape a system and listen to what it does. It is a rebuild of Skrewell, an ensemble for Native Instruments Reaktor 5 by Alexander Potekhin aka Lazyfish, with all 89 presets of its first bank, made first as firmware for the M-VAVE FM-1 and then as this page.</p>
 
+
+    <h3>THE PANEL, TOP TO BOTTOM</h3>
+    <div class="modes stack">
+      <div><b>PLAY</b><span>Starts and stops the sound (Space). While it plays, the screen stays awake.</span></div>
+      <div><b>REC</b><span>A motion recorder. Press once and move anything; press again and what you moved loops, at the length you played. Only the controls you touched are recorded; everything else stays free to play over the loop. Press while it loops for DUB: what you move now replaces what was recorded for that control. Press again to leave DUB. Hold REC 1 s to clear the loop. The loop is saved with a scene.</span></div>
+      <div><b>SCOPE</b><span>Each channel's left lever drawn against its right, eight figures over each other. Tap it (or F) and the controls fade away; tap again (or Esc) to bring them back.</span></div>
+      <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S8) and the mode. Messages appear in the same row for a moment.</span></div>
+      <div><b>SCENE</b><span>Eight scenes of the current preset. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
+      <div><b>SAVE</b><span>Arms saving: the scene cells and the preset cells light up. Tap a scene to store the panel there, or a preset to copy the whole preset there, with its scenes. Whatever was in the cell is overwritten, without asking. Tap SAVE again to cancel.</span></div>
+      <div><b>MODE</b><span>Implant Quad, Xung Tekh or Subtotal (Z, X, C): three ways of building a lever, below.</span></div>
+      <div><b>FUNCTION</b><span>‹ › step through the functions (or 1–8); the faders show the one you pick. Subtotal has no filter, so it has six.</span></div>
+      <div><b>FADERS</b><span>Eight faders, one per channel, for the chosen function. Drag with as many fingers as you like; each finger moves its own fader. ← → pick a channel and ↑ ↓ move it from the keyboard (Shift for bigger steps).</span></div>
+      <div><b>DRAW · WRAP · RAND</b><span>How a drag edits (A, S, D). DRAW sets the fader you touch. WRAP moves all eight together, folding back at the ends so their pattern is kept. RAND scatters all eight each time you touch.</span></div>
+      <div><b>RANDOMISE ALL</b><span>New values for every function at once (?), within the preset's ranges.</span></div>
+      <div><b>OSC · FILTER · DELAY</b><span>Bend all eight values of their function at once: the whole system higher or lower, brighter or darker, shorter or longer, keeping the faders' shape.</span></div>
+      <div><b>FLOW</b><span>Moves the preset's hidden settings between their two stored extremes: modulation depth, resonance, smoothing and the normaliser's floor (below). The same position does something different in every preset.</span></div>
+      <div><b>VOLUME</b><span>The listening level of this page. It is not part of a scene or a preset.</span></div>
+      <div><b>PRESETS</b><span>128 places in 8 octaves of 16. 1–89 are the original's bank; the rest are free for your own. Tap a preset to play it from scene 1. Hold a preset 4 s to bring back the original as Lazyfish made it (your scenes for it are kept until you save over them). E1–E14 beside the number is its engine (below).</span></div>
+      <div><b>REVERB</b><span>SIZE, DECAY, CUT and MIX. CUT is one slider with two ends: the low cut and the high cut of what goes back into the mix. SEND adds the reverb beside the dry sound; INSERT puts the whole sound through it, and MIX sets the balance.</span></div>
+      <div><b>GLUE</b><span>A bus compressor on the sum: THRESHOLD, MAKEUP, RELEASE and DRY/WET, with the ratio beside the title. The meter shows how much it is pressing down.</span></div>
+    </div>
+    <p>Everything you save stays in this browser (or in your account, when the page runs as a Claude artifact). Settings, the current preset and scene, and the volume come back when you open the page again.</p>
+
     <h3>SIGNAL FLOW</h3>
     <svg viewBox="0 0 460 300" role="img" aria-label="Signal flow: in each of 16 levers an oscillator, modulated by a lever of the other side, goes through a filter, adds feedback, a delay and a normaliser; all 16 are summed to left and right, then reverb, glue compressor and output.">
       <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="13" fill="#fff">
@@ -324,11 +351,11 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <p>Each function sets one value per channel: OSC FREQ (pitch), FREQ MOD and AMP MOD (which lever modulates), OSC AMP (level), the two filter functions, DELAY (1 ms to 3 s) and FEEDBACK. OSC, FILTER and DELAY bend all eight values at once; FLOW moves the hidden settings between two extremes stored in each preset.</p>
 
     <h3>PRESETS AND SCENES</h3>
-    <p>A Skrewell snapshot is more than its faders and knobs. Each one also carries settings that have no control on the panel, here or in the original: they were set by the preset's designer and travel with it. That is why the same fader positions can sound completely different from one preset to the next, and why FLOW does something different in each. So here a <b>preset</b> is that instrument, its hidden settings locked, and a <b>scene</b> is a state of its panel: mode, faders, knobs, FX and GLUE, and its loop. Each preset holds 8 scenes; scene 1 comes with the preset. Moving between scenes of one preset morphs smoothly, because they share the same hidden settings.</p>
+    <p>In the original, each of Skrewell's snapshots is more than its faders and knobs. Each one also carries settings that have no control on the panel, here or in the original: they were set by the preset's designer and travel with it. That is why the same fader positions can sound completely different from one preset to the next, and why FLOW does something different in each. So here a <b>preset</b> is that instrument, its hidden settings locked, and a <b>scene</b> is a state of its panel: mode, faders, knobs, FX and GLUE, and its loop. Think of scenes as snapshots that belong to one instrument. Each preset holds 8 scenes; scene 1 comes with the preset and is yours to change. Moving between scenes of one preset morphs smoothly, because they share the same hidden settings; moving to another preset changes the instrument underneath.</p>
     <div class="modes">
       <div><b>RANGE</b><span>What 0 and 100 mean on the faders: the lowest and highest pitch for OSC FREQ, the lowest and highest frequency for the filters (high-pass, low-pass, cutoff), the shortest and longest DELAY.</span></div>
       <div><b>FLOW</b><span>Five settings, each stored twice (FLOW at 0 and at 100) and separately for each mode: FM depth, AM depth, filter resonance, smoothing (how fast pitch, delay and level respond) and the normaliser's floor. FLOW blends between the two; changing mode switches to that mode's set.</span></div>
-      <div><b>LEVEL</b><span>The snapshot's output level: the original's OUT knob (−36 to +18 dB). It was on Reaktor's panel; here it isn't, so it travels with the preset.</span></div>
+      <div><b>LEVEL</b><span>The preset's output level: the original's OUT knob (−36 to +18 dB). It was on Reaktor's panel; here it isn't, so it travels with the preset.</span></div>
     </div>
     <p>The 89 originals are kept exactly as designed, in their order and with their names: each one is a composed work. Underneath, they share 14 engines, sets of hidden ranges and FLOW settings: 56 presets use the first, 16 the second, 5 the third, and the rest are smaller families or stand alone. The small E1–E14 beside each preset's number shows its engine, so you can see which pieces are written for the same instrument. A preset you save keeps the engine of the one you started from.</p>
 
@@ -530,7 +557,7 @@ function recUi() {
 }
 
 /* ---------- presets and scenes ----------
-   A preset is an instrument: the hidden values every snapshot of the original carries (ranges, FLOW pairs, level),
+   A preset is an instrument: the hidden values every preset of the original carries (ranges, FLOW pairs, level),
    locked, plus a name and 8 scenes. A scene is everything on the panel: mode, faders, knobs, FX + GLO (unless they
    are kept global) and its loop. Presets 1-89 are the original's Bank 1; each has scene 1 from its own panel. */
 const NSCENES = 8;
