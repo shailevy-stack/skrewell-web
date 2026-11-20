@@ -271,6 +271,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <div class="fx" id="settings"></div>
     <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide).</p>
     <p class="hint" id="audioinfo"></p>
+    <p class="hint"><button id="capture">Capture 5 s</button> <span id="capinfo">Records exactly what goes to the audio output, as a WAV file.</span></p>
 
     <div class="sep" aria-hidden="true"></div>
     <h2><span class="k">INFO</span>What it is</h2>
@@ -398,6 +399,7 @@ class SkrewellProc extends AudioWorkletProcessor {
       case 'patch': new Uint8Array(w.memory.buffer, w.patch_ptr(), w.patch_size()).set(m.bytes); break;
       case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4], m.a[5], m.a[6]); break;
       case 'glue': w.set_glue(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4]); break;
+      case 'cap': this.cap = { L: new Float32Array(m.n), R: new Float32Array(m.n), i: 0 }; break;   /* a capture of exactly what goes out */
     }
   }
   process(ins, outs) {
@@ -412,6 +414,11 @@ class SkrewellProc extends AudioWorkletProcessor {
       this.gain += (tgt - this.gain) * 0.002;
       const g = this.gain * this.vol;
       L[i] = oL[i] * g; if (R !== L) R[i] = oR[i] * g;
+    }
+    if (this.cap) {
+      const c = this.cap, k = Math.min(n, c.L.length - c.i);
+      c.L.set(L.subarray(0, k), c.i); c.R.set((R !== L ? R : L).subarray(0, k), c.i); c.i += k;
+      if (c.i >= c.L.length) { this.port.postMessage({ c: 'cap', L: c.L, R: c.R, sr: sampleRate }, [c.L.buffer, c.R.buffer]); this.cap = null; }
     }
     const sc = new Float32Array(mem, w.scope_ptr(), n * 16);
     for (let i = 0; i < n; i += 2) { this.sbuf.set(sc.subarray(i * 16, i * 16 + 16), this.sn); this.sn += 16; }
@@ -791,7 +798,7 @@ async function startAudio() {
     }
     node = new AudioWorkletNode(ctx, 'skrewell', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { bytes: WASM } });
     node.connect(ctx.destination);
-    node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts); S.gr = e.data.g; } };
+    node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts); S.gr = e.data.g; } else if (e.data.c === 'cap') capDone(e.data); };
     loadPatch(S.patch); verbApply(); glueApply(); post({ c: 'vol', x: S.vol });
     return true;
   } catch (e) {
@@ -1165,6 +1172,37 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document
 /* ---------- reload (a home-screen app has no browser reload) ---------- */
 document.getElementById('reload').addEventListener('click', () => { try { if (node) post({ c: 'run', on: false }); } catch (e) {} setTimeout(() => location.reload(), 60); });
 /* ---------- the title: settings + info ---------- */
+/* capture: 5 s of exactly what the page sends to the audio output, as a 32-bit float WAV, plus a quick look at it */
+function capStart() {
+  const el = document.getElementById('capinfo');
+  if (!ctx || !S.running) { el.textContent = 'Press Play first.'; return; }
+  el.textContent = 'Capturing 5 s…';
+  post({ c: 'cap', n: Math.round(ctx.sampleRate * 5) });
+}
+function capDone(d) {
+  const { L, R, sr } = d, n = L.length, el = document.getElementById('capinfo');
+  let pk = 0, ss = 0;
+  for (let i = 0; i < n; i++) { const a = Math.abs(L[i]), b = Math.abs(R[i]); pk = Math.max(pk, a, b); ss += L[i] * L[i] + R[i] * R[i]; }
+  const db = (x) => x > 0 ? (20 * Math.log10(x)).toFixed(1) + ' dB' : 'silence';
+  const x = L.subarray(n - 8192), hi = [];       /* the strongest tones from 5 to 20 kHz */
+  for (let f = 5000; f <= 20000; f += 50) {
+    const c = 2 * Math.cos(2 * Math.PI * f / sr); let s1 = 0, s2 = 0;
+    for (let i = 0; i < x.length; i++) { const s0 = x[i] + c * s1 - s2; s2 = s1; s1 = s0; }
+    hi.push([f, Math.sqrt(Math.max(0, s1 * s1 + s2 * s2 - c * s1 * s2)) * 2 / x.length]);
+  }
+  hi.sort((a, b) => b[1] - a[1]);
+  el.textContent = 'Peak ' + db(pk) + ' · RMS ' + db(Math.sqrt(ss / (2 * n))) + ' · strongest above 5 kHz: ' + hi[0][0] + ' Hz at ' + db(hi[0][1]) + ', ' + hi[1][0] + ' Hz at ' + db(hi[1][1]);
+  const buf = new ArrayBuffer(44 + n * 8), v = new DataView(buf);   /* WAV, 2 channels, 32-bit float */
+  const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n * 8, true); str(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 3, true);
+  v.setUint16(22, 2, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 8, true); v.setUint16(32, 8, true); v.setUint16(34, 32, true);
+  str(36, 'data'); v.setUint32(40, n * 8, true);
+  for (let i = 0, o = 44; i < n; i++, o += 8) { v.setFloat32(o, L[i], true); v.setFloat32(o + 4, R[i], true); }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  a.download = 'skrewell-capture.wav';
+  document.body.append(a); a.click(); a.remove();
+}
 function audioInfo() {                          /* settings: what the audio output runs at (for odd sound on some outputs) */
   const el = document.getElementById('audioinfo');
   if (!el) return;
@@ -1172,6 +1210,7 @@ function audioInfo() {                          /* settings: what the audio outp
   const ms = (x) => x ? Math.round(x * 1000) + ' ms' : '–';
   el.textContent = 'Audio output: ' + (ctx.sampleRate / 1000).toFixed(1).replace(/\.0$/, '') + ' kHz · latency ' + ms(ctx.baseLatency) + ' + ' + ms(ctx.outputLatency) + ' · ' + ctx.state;
 }
+document.getElementById('capture').addEventListener('click', capStart);
 document.getElementById('title').addEventListener('click', () => {
   audioInfo();
   const on = !document.body.classList.contains('info');

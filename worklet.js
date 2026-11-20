@@ -24,6 +24,7 @@ class SkrewellProc extends AudioWorkletProcessor {
       case 'patch': new Uint8Array(w.memory.buffer, w.patch_ptr(), w.patch_size()).set(m.bytes); break;
       case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4], m.a[5], m.a[6]); break;
       case 'glue': w.set_glue(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4]); break;
+      case 'cap': this.cap = { L: new Float32Array(m.n), R: new Float32Array(m.n), i: 0 }; break;   /* a capture of exactly what goes out */
     }
   }
   process(ins, outs) {
@@ -38,6 +39,11 @@ class SkrewellProc extends AudioWorkletProcessor {
       this.gain += (tgt - this.gain) * 0.002;
       const g = this.gain * this.vol;
       L[i] = oL[i] * g; if (R !== L) R[i] = oR[i] * g;
+    }
+    if (this.cap) {
+      const c = this.cap, k = Math.min(n, c.L.length - c.i);
+      c.L.set(L.subarray(0, k), c.i); c.R.set((R !== L ? R : L).subarray(0, k), c.i); c.i += k;
+      if (c.i >= c.L.length) { this.port.postMessage({ c: 'cap', L: c.L, R: c.R, sr: sampleRate }, [c.L.buffer, c.R.buffer]); this.cap = null; }
     }
     const sc = new Float32Array(mem, w.scope_ptr(), n * 16);
     for (let i = 0; i < n; i += 2) { this.sbuf.set(sc.subarray(i * 16, i * 16 + 16), this.sn); this.sn += 16; }
