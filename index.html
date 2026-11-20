@@ -407,7 +407,7 @@ const S = {
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
   fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false,
   presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
-  migrated: new Set(),
+  migrated: new Set(), fresh: false,
   running: false, gr: 1, vol: 0.8, morph: 0,
 };
 S.dv = new DataView(S.patch.buffer);
@@ -619,7 +619,8 @@ const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i++) s += Strin
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 function presetDoc(k) { const p = S.presets[k]; return p ? { name: p.name, base: b64(p.base) } : null; }
 function sceneDoc(sc) { return sc ? { patch: b64(sc.patch), fx: sc.fx, loop: sc.loop } : null; }
-function settingsDoc() { return { v: 3, morph: S.morph, fxGlobal: S.fxGlobal, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, oct: S.oct, vol: S.vol }; }
+const STORE_V = 4;                              /* 4: a fresh start for presets + scenes (older saves are dropped) */
+function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, oct: S.oct, vol: S.vol }; }
 function lsSet(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 async function dbSet(id, d) { if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc(id); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} } }
@@ -679,6 +680,12 @@ function applySettingsDoc(d) {
   if (d.morph >= 0 && d.morph <= 1) S.morph = +d.morph;
 }
 function loadLocal() {
+  const st = lsGet('skrewell.settings');
+  if (!st || !(st.v >= STORE_V)) {                  /* older saves: dropped, the presets start as they came */
+    try { Object.keys(localStorage).filter((k) => /^skrewell\.(slot|preset|scene)\./.test(k)).forEach((k) => localStorage.removeItem(k)); } catch (e) {}
+    S.fresh = true;
+    lsSet('skrewell.settings', Object.assign({}, st || {}, { v: STORE_V }));
+  }
   for (let k = 0; k < NSLOTS; k++) {
     applyPresetDoc(k, lsGet('skrewell.preset.' + k));
     for (let j = 0; j < NSCENES; j++) applySceneDoc(k, j, lsGet('skrewell.scene.' + k + '.' + j));
@@ -698,10 +705,17 @@ async function connectDb() {
     const snap = await Promise.race([col.get(), new Promise((_, rej) => setTimeout(() => rej(0), 10000))]);
     DB = db; UID = id;
     if (snap.empty) {                               /* first visit with an account: bring this browser's presets along */
+      settingsDirty();
       for (let k = 0; k < NSLOTS; k++) if (S.presets[k]) await savePreset(k);
     } else {
       S.presets.fill(null); S.migrated.clear();
-      const docs = snap.docs.map((d) => [d.id, d.data()]);
+      let docs = snap.docs.map((d) => [d.id, d.data()]);
+      const st = docs.find(([n]) => n === 'settings');
+      if (!st || !(st[1] && st[1].v >= STORE_V)) {   /* older saves in the account: dropped too */
+        for (const [n] of docs) if (/^(slot|preset|scene)-/.test(n)) await dbSet(n, null);
+        docs = docs.filter(([n]) => !/^(slot|preset|scene)-/.test(n));
+        settingsDirty();
+      }
       for (const [n, d] of docs) if (n.startsWith('preset-')) applyPresetDoc(parseInt(n.slice(7), 10), d);
       for (const [n, d] of docs) if (n.startsWith('scene-')) { const [k, j] = n.slice(6).split('-').map((x) => parseInt(x, 10)); applySceneDoc(k, j, d); }
       for (const [n, d] of docs) if (n.startsWith('slot-')) applyOldSlotDoc(parseInt(n.slice(5), 10), d);
