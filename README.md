@@ -6,7 +6,7 @@ A browser version of SKREWELL, the M-VAVE FM-1 firmware: a self-modulating drone
 
 - A full-screen scope behind everything; 8 functions × 8 channels with DRAW / WRAP / RAND, the three modes, OSC / FILTER / DELAY / FLOW.
 - Reverb as a send or an insert, with a low cut / high cut on its return; glue compressor.
-- 128 presets in 8 octaves (1–89: the original's Bank 1), each with 8 scenes. A preset is the instrument (its hidden ranges and FLOW settings, locked); a scene is everything on the panel: mode, faders, knobs, FX + GLO (or keep those global) and its loop. Made-up names; hold a preset 4 s for the original.
+- 128 presets in 8 octaves (1–89: the original's Bank 1), each with 8 scenes. A preset is the instrument (its hidden ranges and FLOW settings, locked); a scene is everything on the panel: mode, faders, knobs, FX + GLO (or keep those global) and its loop. A preset's hidden settings never change; SAVE then another preset copies it there with its scenes, under a made-up name.
 - REC: record moves (only the controls you touch), loop, overdub; hold to clear.
 - Tap the scope for a full-screen scope, tap again for the controls. Tap the SKREWELL title for settings (FX + GLUE per scene or global, MORPH time) and the info page, which explains every control.
 

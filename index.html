@@ -142,7 +142,6 @@ body.info .main-card, body.info .scopehint { display: none; }
 .slot.cur { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .slot.cur .n { color: var(--bg); }
 .slot.armed { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); color: var(--ink); }
-.slot .hold { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; width: 0; }
 
 .fx { display: grid; gap: 8px; }
 .fxrow { display: grid; grid-template-columns: 9ch minmax(0, 1fr) 9ch; align-items: center; gap: 10px; }
@@ -248,7 +247,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h2><span class="k">PRESETS</span><span id="octlbl">1–16</span></h2>
     <div class="octs" id="octs"></div>
     <div class="slots" id="slots"></div>
-    <div class="hint">Tap a preset: it plays from scene 1. Save, then a preset: copy this one there with its scenes. Hold a preset 4 s: the original.</div>
+    <div class="hint">Tap a preset: it plays from scene 1. Save, then a preset: copy this one there with all its scenes.</div>
   </section>
 
   <section class="card main-card">
@@ -292,7 +291,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>OSC · FILTER · DELAY</b><span>Bend all eight values of their function at once: the whole system higher or lower, brighter or darker, shorter or longer, keeping the faders' shape.</span></div>
       <div><b>FLOW</b><span>Moves the preset's hidden settings between their two stored extremes: modulation depth, resonance, smoothing and the normaliser's floor (below). The same position does something different in every preset.</span></div>
       <div><b>VOLUME</b><span>The listening level of this page. It is not part of a scene or a preset.</span></div>
-      <div><b>PRESETS</b><span>128 places in 8 octaves of 16. 1–89 are the original's bank; the rest are free for your own. Tap a preset to play it from scene 1. Hold a preset 4 s to bring back the original as Lazyfish made it (your scenes for it are kept until you save over them). E1–E14 beside the number is its engine (below).</span></div>
+      <div><b>PRESETS</b><span>128 places in 8 octaves of 16 (the numbers 1–8 above them). 1–89 are the original's bank, in its order and with its names; 90–128 start empty. A preset is an instrument: its hidden settings are fixed and can't be changed, here or in the original. What you change and save are its scenes. Tap a preset to play it from scene 1. SAVE, then another preset: the one playing is copied there with all its scenes (and what plays now in the current scene), replacing what was there; that is how you start a variation of a preset in a place of its own. E1–E14 beside the number is its engine (below).</span></div>
       <div><b>REVERB</b><span>SIZE, DECAY, CUT and MIX. CUT is one slider with two ends: the low cut and the high cut of what goes back into the mix. SEND adds the reverb beside the dry sound; INSERT puts the whole sound through it, and MIX sets the balance.</span></div>
       <div><b>GLUE</b><span>A bus compressor on the sum: THRESHOLD, MAKEUP, RELEASE and DRY/WET, with the ratio beside the title. The meter shows how much it is pressing down.</span></div>
     </div>
@@ -621,12 +620,11 @@ function recallScene(j) {
   say(sc.loop ? 'LOOP' : 'SCENE', String(j + 1));
   presetsUi(); settingsDirty();
 }
-function recallPreset(k, original) {
-  if (!original && !presetFilled(k)) { say('EMPTY', 'PRESET'); return; }
-  if (original && k >= BANK.length) { say('NO ORIGINAL', 'AN EMPTY PRESET'); return; }
-  playScene(original ? { patch: BANK[k], fx: null, loop: null } : sceneOf(k, 0));
+function recallPreset(k) {
+  if (!presetFilled(k)) { say('EMPTY', 'PRESET'); return; }
+  playScene(sceneOf(k, 0));
   S.preset = k; S.scene = 0;
-  say(original ? 'ORIGINAL' : 'PRESET', shortName(original ? BANK_NAMES[k] : presetName(k)));
+  say('PRESET', shortName(presetName(k)));
   presetsUi(); settingsDirty();
 }
 function sceneNow() {
@@ -1075,21 +1073,15 @@ function presetsUi() {
   if (!box.childElementCount) {
     for (let i = 0; i < 16; i++) {
       const b = document.createElement('button'); b.className = 'slot';
-      b.innerHTML = '<span class="n"><span class="no"></span><span class="eng"></span></span><span class="nm"></span><span class="l" hidden></span><span class="hold"></span>';
-      let holdT = 0, raf = 0, t0 = 0;
-      const stop = () => { clearTimeout(holdT); cancelAnimationFrame(raf); b.querySelector('.hold').style.width = '0'; };
+      b.innerHTML = '<span class="n"><span class="no"></span><span class="eng"></span></span><span class="nm"></span><span class="l" hidden></span>';
       b.addEventListener('contextmenu', (e) => e.preventDefault());
       b.addEventListener('pointerdown', (e) => {
         if (e.button) return;
         const k = S.oct * 16 + i;
         if (S.armed) { storePreset(k); S.armed = false; saveUi(); return; }
-        recallPreset(k, false);
-        t0 = performance.now();
-        const grow = () => { b.querySelector('.hold').style.width = Math.min(100, (performance.now() - t0) / 40) + '%'; raf = requestAnimationFrame(grow); };
-        if (k < BANK.length) { raf = requestAnimationFrame(grow); holdT = setTimeout(() => { stop(); recallPreset(k, true); }, 4000); }
+        recallPreset(k);
       });
-      b.addEventListener('pointerup', stop); b.addEventListener('pointerleave', stop); b.addEventListener('pointercancel', stop);
-      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const k = S.oct * 16 + i; if (S.armed) { storePreset(k); S.armed = false; saveUi(); } else recallPreset(k, false); } });
+      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const k = S.oct * 16 + i; if (S.armed) { storePreset(k); S.armed = false; saveUi(); } else recallPreset(k); } });
       box.append(b);
     }
   }
