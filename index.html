@@ -292,7 +292,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>OSC · FILTER · DELAY</b><span>Bend all eight values of their function at once: the whole system higher or lower, brighter or darker, shorter or longer, keeping the faders' shape.</span></div>
       <div><b>FLOW</b><span>Moves the preset's hidden settings between their two stored extremes: modulation depth, resonance, smoothing and the normaliser's floor (below). The same position does something different in every preset.</span></div>
       <div><b>VOLUME</b><span>The listening level of this page. It is not part of a scene or a preset.</span></div>
-      <div><b>PRESETS</b><span>128 places in 8 octaves of 16 (the numbers 1–8 above them). 1–89 are the original's bank, in its order and with its names. A preset is an instrument: its hidden settings are fixed and can't be changed, here or in the original. What you change and save are its scenes. Tap a preset and it plays the scene you last played in it (scene 1 the first time). Hold a preset 1 s and every control returns to the original's settings; the header shows ORIG, and SAVE then a scene keeps them. E1–E14 beside the number is its engine (below).</span></div>
+      <div><b>PRESETS</b><span>The 89 presets of the original's bank, in its order and with its names, in 6 octaves of 16 (the numbers 1–6 above them). A preset is an instrument: its hidden settings are fixed and can't be changed, here or in the original. What you change and save are its scenes. Tap a preset and it plays the scene you last played in it (scene 1 the first time). Hold a preset 1 s and every control returns to the original's settings; the header shows ORIG, and SAVE then a scene keeps them. E1–E14 beside the number is its engine (below).</span></div>
       <div><b>REVERB</b><span>SIZE, DECAY, CUT and MIX. CUT is one slider with two ends: the low cut and the high cut of what goes back into the mix. SEND adds the reverb beside the dry sound; INSERT puts the whole sound through it, and MIX sets the balance.</span></div>
       <div><b>GLUE</b><span>A bus compressor on the sum: THRESHOLD, MAKEUP, RELEASE and DRY/WET, with the ratio beside the title. The meter shows how much it is pressing down.</span></div>
     </div>
@@ -441,7 +441,7 @@ function fnName(m, f) {
 const KNOB_NAME = ['OSC', 'FILTER', 'DELAY', 'FLOW'];
 /* parameter ids: bars 0-63, knobs 64-67, mode 68, reverb 69-72 (size, decay, low cut, mix), glue 73-76, high cut 77 */
 const P_KNOB0 = 64, P_MODE = 68, P_VERB0 = 69, P_GLUE0 = 73, P_HICUT = 77, P_N = 78;
-const NSLOTS = 128, NOCT = 8;
+const NSLOTS = 96, NOCT = 6;                       /* 6 octaves of 16 places; the 89 presets fill 1-89 */
 const DAMP = 0.3;                               /* the reverb's own damping, fixed: the cuts shape its tone */
 
 /* ---------- state ---------- */
@@ -1042,9 +1042,9 @@ function headerUi() {
 /* ---------- presets and scenes ui ---------- */
 function octUi() {
   const box = document.getElementById('octs');
-  if (!box.childElementCount) for (let o = 0; o < NOCT; o++) { const b = document.createElement('button'); b.textContent = o + 1; b.title = 'Octave ' + (o + 1) + ': presets ' + (o * 16 + 1) + '–' + (o * 16 + 16); b.addEventListener('click', () => { S.oct = o; octUi(); presetsUi(); settingsDirty(); }); box.append(b); }
+  if (!box.childElementCount) for (let o = 0; o < NOCT; o++) { const b = document.createElement('button'); b.textContent = o + 1; b.title = 'Octave ' + (o + 1) + ': presets ' + (o * 16 + 1) + '–' + Math.min(89, o * 16 + 16); b.addEventListener('click', () => { S.oct = o; octUi(); presetsUi(); settingsDirty(); }); box.append(b); }
   [...box.children].forEach((b, o) => b.classList.toggle('on', o === S.oct));
-  document.getElementById('octlbl').textContent = (S.oct * 16 + 1) + '–' + (S.oct * 16 + 16);
+  document.getElementById('octlbl').textContent = (S.oct * 16 + 1) + '–' + Math.min(BANK.length, S.oct * 16 + 16);
 }
 function scenesUi() {
   const box = document.getElementById('scenes');
@@ -1101,6 +1101,7 @@ function presetsUi() {
     b.querySelector('.l').hidden = nsc < 2;
     b.querySelector('.l').textContent = nsc + 'S';
     b.classList.toggle('empty', !filled);
+    b.style.visibility = k < BANK.length ? '' : 'hidden';   /* (past 89: no preset) */
     b.classList.toggle('cur', k === S.preset);
     b.title = filled ? presetName(k) + (eng ? ' · engine E' + eng : '') + ' · ' + Math.max(1, nsc) + (nsc > 1 ? ' scenes' : ' scene') + (k < BANK.length ? ' · hold: the original' : '') : 'Empty preset';
   });
