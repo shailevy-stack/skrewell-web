@@ -74,7 +74,7 @@ body.info .main-card, body.info .scopehint { display: none; }
 #info a { color: var(--ink); }
 #info svg { width: 100%; height: auto; display: block; }
 #info .modes { display: grid; gap: 6px; }
-#info .modes div { display: grid; grid-template-columns: 4ch minmax(0, 1fr); gap: 10px; }
+#info .modes div { display: grid; grid-template-columns: 6ch minmax(0, 1fr); gap: 10px; }
 #info .modes b { font-weight: 500; }
 .slotbox { border: 1px solid var(--ink); padding: 2px 6px; font-variant-numeric: tabular-nums; }
 .pname { font-weight: 500; text-transform: uppercase; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 34ch; }
@@ -287,6 +287,15 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
 
     <h3>THE EIGHT FUNCTIONS</h3>
     <p>Each function sets one value per channel: OSC FREQ (pitch), FREQ MOD and AMP MOD (which lever modulates), OSC AMP (level), the two filter functions, DELAY (1 ms to 3 s) and FEEDBACK. OSC, FILTER and DELAY bend all eight values at once; FLOW moves the hidden settings between two extremes stored in each preset.</p>
+
+    <h3>SNAPSHOTS</h3>
+    <p>A Skrewell snapshot is more than its faders and knobs. Each one also carries settings that have no control on the panel, here or in the original: they were set by the preset's designer and travel with it. That is why the same fader positions can sound completely different from one preset to the next, and why FLOW does something different in each. When you save your own snapshot, these settings come from the preset you started with.</p>
+    <div class="modes">
+      <div><b>RANGE</b><span>What 0 and 100 mean on the faders: the lowest and highest pitch for OSC FREQ, the lowest and highest frequency for the filters (high-pass, low-pass, cutoff), the shortest and longest DELAY.</span></div>
+      <div><b>FLOW</b><span>Five settings, each stored twice (FLOW at 0 and at 100) and separately for each mode: FM depth, AM depth, filter resonance, smoothing (how fast pitch, delay and level respond) and the normaliser's floor. FLOW blends between the two; changing mode switches to that mode's set.</span></div>
+      <div><b>LEVEL</b><span>The snapshot's output level.</span></div>
+    </div>
+    <p>So the 89 originals are 89 different instruments sharing one panel.</p>
 
     <h3>CREDITS</h3>
     <p>Skrewell, its design and its presets: Alexander Potekhin aka Lazyfish, published here with his permission. This version: Shai Levy. Code: <a href="https://github.com/shailevy-stack/skrewell-web">github.com/shailevy-stack/skrewell-web</a>. Built on fm1-base and felucca-bsp (Felucca by Leo Kuroshita, Hügelton Instruments).</p>
