@@ -129,7 +129,9 @@ body.info .main-card, body.info .scopehint { display: none; }
 .octs button { padding: 4px 9px; }
 .slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .slot { text-align: left; padding: 6px; min-height: 52px; display: grid; align-content: start; gap: 2px; text-transform: none; letter-spacing: .02em; position: relative; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.slot .n { color: var(--label); font-size: 11px; font-variant-numeric: tabular-nums; }
+.slot .n { color: var(--label); font-size: 11px; font-variant-numeric: tabular-nums; display: flex; gap: 6px; }
+.slot .eng { color: var(--faint); }
+.slot.cur .eng { color: var(--bg); opacity: .6; }
 .slot .nm { font-size: 11px; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .slot .l { position: absolute; top: 5px; right: 6px; font-size: 10px; border: 1px solid currentColor; padding: 0 3px; }
 .slot.empty { border-style: dashed; color: var(--faint); }
@@ -328,7 +330,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>FLOW</b><span>Five settings, each stored twice (FLOW at 0 and at 100) and separately for each mode: FM depth, AM depth, filter resonance, smoothing (how fast pitch, delay and level respond) and the normaliser's floor. FLOW blends between the two; changing mode switches to that mode's set.</span></div>
       <div><b>LEVEL</b><span>The snapshot's output level: the original's OUT knob (−36 to +18 dB). It was on Reaktor's panel; here it isn't, so it travels with the preset.</span></div>
     </div>
-    <p>So the 89 originals are 89 different instruments sharing one panel. A preset you save copies the hidden settings of the one you started from.</p>
+    <p>The 89 originals are kept exactly as designed, in their order and with their names: each one is a composed work. Underneath, they share 14 engines, sets of hidden ranges and FLOW settings: 56 presets use the first, 16 the second, 5 the third, and the rest are smaller families or stand alone. The small E1–E14 beside each preset's number shows its engine, so you can see which pieces are written for the same instrument. A preset you save keeps the engine of the one you started from.</p>
 
     <h3>CREDITS</h3>
     <p>Skrewell, its design and its presets: Alexander Potekhin aka Lazyfish, published here with his permission. This version: Shai Levy. Code: <a href="https://github.com/shailevy-stack/skrewell-web">github.com/shailevy-stack/skrewell-web</a>. Built on fm1-base and felucca-bsp (Felucca by Leo Kuroshita, Hügelton Instruments).</p>
@@ -532,6 +534,11 @@ function recUi() {
    locked, plus a name and 8 scenes. A scene is everything on the panel: mode, faders, knobs, FX + GLO (unless they
    are kept global) and its loop. Presets 1-89 are the original's Bank 1; each has scene 1 from its own panel. */
 const NSCENES = 8;
+/* engine families: presets whose hidden ranges and FLOW pairs (bytes 280..440) are identical share an engine;
+   numbered E1.. by family size, largest first (the bank's order and names stay as they are) */
+const ENGINES = [];
+function engineKey(p) { let k = ''; for (let i = 280; i < PATCH_N; i++) k += String.fromCharCode(p[i]); return k; }
+function engineOf(p) { const k = engineKey(p); const i = ENGINES.indexOf(k); return i < 0 ? 0 : i + 1; }   /* 0: its own */
 function presetFilled(k) { return !!S.presets[k] || k < BANK.length; }
 function presetName(k) {
   const s = S.presets[k];
@@ -1041,7 +1048,7 @@ function presetsUi() {
   if (!box.childElementCount) {
     for (let i = 0; i < 16; i++) {
       const b = document.createElement('button'); b.className = 'slot';
-      b.innerHTML = '<span class="n"></span><span class="nm"></span><span class="l" hidden></span><span class="hold"></span>';
+      b.innerHTML = '<span class="n"><span class="no"></span><span class="eng"></span></span><span class="nm"></span><span class="l" hidden></span><span class="hold"></span>';
       let holdT = 0, raf = 0, t0 = 0;
       const stop = () => { clearTimeout(holdT); cancelAnimationFrame(raf); b.querySelector('.hold').style.width = '0'; };
       b.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1062,14 +1069,16 @@ function presetsUi() {
   [...box.children].forEach((b, i) => {
     const k = S.oct * 16 + i, filled = presetFilled(k), p = S.presets[k];
     const nsc = p ? p.scenes.filter(Boolean).length : 0;
-    b.querySelector('.n').textContent = String(k + 1).padStart(2, '0');
+    const base = p ? p.base : (k < BANK.length ? BANK[k] : null), eng = base ? engineOf(base) : 0;
+    b.querySelector('.no').textContent = String(k + 1).padStart(2, '0');
+    b.querySelector('.eng').textContent = eng ? 'E' + eng : '';
     b.querySelector('.nm').textContent = filled ? shortName(presetName(k)) : 'empty';
     b.querySelector('.l').hidden = nsc < 2;
     b.querySelector('.l').textContent = nsc + 'S';
     b.classList.toggle('empty', !filled);
     b.classList.toggle('cur', k === S.preset);
     b.classList.toggle('armed', S.armed);
-    b.title = filled ? presetName(k) + (p ? ' (yours, ' + Math.max(1, nsc) + ' scenes)' : ' (original)') : 'Empty preset';
+    b.title = filled ? presetName(k) + (eng ? ' · engine E' + eng : '') + (p ? ' (yours, ' + Math.max(1, nsc) + ' scenes)' : ' (original)') : 'Empty preset';
   });
   scenesUi(); headerUi();
 }
@@ -1162,6 +1171,8 @@ function frame() {
     let s = '', p = W.bank_name(k); while (m[p]) s += String.fromCharCode(m[p++]);
     BANK_NAMES.push(s);
   }
+  { const n = {}; for (const p of BANK) { const k = engineKey(p); if (!(k in n)) { n[k] = 0; ENGINES.push(k); } n[k]++; }
+    ENGINES.sort((x, y) => n[y] - n[x]); }   /* E1 = the largest family; ties keep the bank's order */
   loadLocal();
   { const sc = sceneOf(S.preset, S.scene) || sceneOf(S.preset, 0) || { patch: BANK[0] }; S.patch.set(sc.patch); if (!S.fxGlobal && sc.fx) { const f = sc.fx; S.verb = f.verb.slice(); S.hicut = f.hicut; S.insert = f.insert; S.glue = f.glue.slice(); S.ratio = f.ratio; } }
   buildKnobs(); buildFx(); buildMeter(); octUi(); presetsUi(); recUi();
