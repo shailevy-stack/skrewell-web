@@ -270,6 +270,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
     <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide).</p>
+    <p class="hint" id="audioinfo"></p>
 
     <div class="sep" aria-hidden="true"></div>
     <h2><span class="k">INFO</span>What it is</h2>
@@ -1164,7 +1165,15 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document
 /* ---------- reload (a home-screen app has no browser reload) ---------- */
 document.getElementById('reload').addEventListener('click', () => { try { if (node) post({ c: 'run', on: false }); } catch (e) {} setTimeout(() => location.reload(), 60); });
 /* ---------- the title: settings + info ---------- */
+function audioInfo() {                          /* settings: what the audio output runs at (for odd sound on some outputs) */
+  const el = document.getElementById('audioinfo');
+  if (!el) return;
+  if (!ctx) { el.textContent = 'Audio output: not started yet (press Play).'; return; }
+  const ms = (x) => x ? Math.round(x * 1000) + ' ms' : '–';
+  el.textContent = 'Audio output: ' + (ctx.sampleRate / 1000).toFixed(1).replace(/\.0$/, '') + ' kHz · latency ' + ms(ctx.baseLatency) + ' + ' + ms(ctx.outputLatency) + ' · ' + ctx.state;
+}
 document.getElementById('title').addEventListener('click', () => {
+  audioInfo();
   const on = !document.body.classList.contains('info');
   document.body.classList.toggle('info', on);
   document.getElementById('title').setAttribute('aria-pressed', String(on));

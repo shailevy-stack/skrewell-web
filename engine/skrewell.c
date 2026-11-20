@@ -83,6 +83,7 @@ void skr_init(skr_engine *e, float sr) {
     e->scX = e->scY = e->scXs = e->scYs = e->scS[0] = e->scS[1] = 0.5f;
     e->glue = (skr_glue){-18.0f, 4.0f, 10.0f, 200.0f, 4.0f, 1.0f};
     e->gl_gain = 1.f;
+    e->dcR = 1.f - 6.2831853f * 5.f / sr;     /* the levers' sum can sit off zero (the normalisers): no DC to the FX or out */
     e->verb = (skr_verb){0.6f, 0.45f, 0.5f, 0.2f};
     /* every oscillator starts at a different phase (Reaktor's L/R never start identical) */
     uint32_t sd = 22222;
@@ -494,6 +495,9 @@ SKR_RAM void skr_block_end(skr_engine *e, float *outL, float *outR, unsigned n) 
     for (unsigned i = 0; i < n; i++) {
         e->gainS += e->gCo * (e->gainT - e->gainS);
         float l = e->sideOut[0][i] * e->gainS, r = e->sideOut[1][i] * e->gainS;
+        float yl = l - e->dcX[0] + e->dcR * e->dcY[0], yr = r - e->dcX[1] + e->dcR * e->dcY[1];
+        e->dcX[0] = l; e->dcX[1] = r;
+        e->dcY[0] = l = yl; e->dcY[1] = r = yr;
         verb(e, &l, &r);
         glue(e, &l, &r);
         outL[i] = softclip(l); outR[i] = softclip(r);

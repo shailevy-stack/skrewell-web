@@ -75,6 +75,7 @@ typedef struct {
     float cTyp[SKR_NV], svf[SKR_NV][2][3];
     float cFco[SKR_NV], cDco[SKR_NV], cEnvCo[SKR_NV], cRel[SKR_NV];
     float log2fm, amD, k, nrm, smt, cvCo, gCo, scCo, gainT, gainS, scXs, scYs;
+    float dcR, dcX[2], dcY[2];                 /* the DC blocker on the sum (a 1-pole high-pass at 5 Hz) */
     float dz[SKR_NL][3][2], dlp[8][5];       /* band-limiting filters for reduced-rate lines */
     uint16_t rv_pos, ap_pos[SKR_AP_N];
     float rv_hpc[5], rv_lpc[5], rv_fz[2][2][2]; uint8_t rv_hpon, rv_lpon;   /* the return's low / high cut */
