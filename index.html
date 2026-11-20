@@ -135,6 +135,7 @@ body.info .main-card, body.info .scopehint { display: none; }
 .slot { text-align: left; padding: 6px; min-height: 52px; display: grid; align-content: start; gap: 2px; text-transform: none; letter-spacing: .02em; position: relative; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .slot .n { color: var(--label); font-size: 11px; font-variant-numeric: tabular-nums; display: flex; gap: 6px; }
 .slot .eng { color: var(--faint); }
+.slot .hold { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; width: 0; }
 .slot.cur .eng { color: var(--bg); opacity: .6; }
 .slot .nm { font-size: 11px; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .slot .l { position: absolute; top: 5px; right: 6px; font-size: 10px; border: 1px solid currentColor; padding: 0 3px; }
@@ -214,7 +215,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <div class="ctl">
       <span class="lbl">Scene</span>
       <div class="scenes" id="scenes"></div>
-      <button id="save" title="Arm, then tap a scene or a preset to store into it">Save</button>
+      <button id="save" title="Arm, then tap a scene to store into it">Save</button>
       <span class="lbl">Mode</span>
       <div class="modes3" id="modes">
         <button data-m="0" title="Implant Quad (Z)">Implant Quad</button>
@@ -247,7 +248,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h2><span class="k">PRESETS</span><span id="octlbl">1–16</span></h2>
     <div class="octs" id="octs"></div>
     <div class="slots" id="slots"></div>
-    <div class="hint">Tap a preset: it plays from scene 1. Save, then a preset: copy this one there with all its scenes.</div>
+    <div class="hint">Tap a preset: it plays the scene you last played in it. Hold a preset 1 s: its original settings, ready to save as a scene.</div>
   </section>
 
   <section class="card main-card">
@@ -282,7 +283,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>SCOPE</b><span>Each channel's left lever drawn against its right, eight figures over each other. Tap it (or F) and the controls fade away; tap again (or Esc) to bring them back.</span></div>
       <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S8) and the mode. Messages appear in the same row for a moment.</span></div>
       <div><b>SCENE</b><span>Eight scenes of the current preset. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
-      <div><b>SAVE</b><span>Arms saving: the scene cells and the preset cells light up. Tap a scene to store the panel there, or a preset to copy the whole preset there, with its scenes. Whatever was in the cell is overwritten, without asking. Tap SAVE again to cancel.</span></div>
+      <div><b>SAVE</b><span>Arms saving: the eight scene cells light up. Tap one to store what plays now there, loop included. Whatever was in it is overwritten, without asking. Tap SAVE again to cancel.</span></div>
       <div><b>MODE</b><span>Implant Quad, Xung Tekh or Subtotal (Z, X, C): three ways of building a lever, below.</span></div>
       <div><b>FUNCTION</b><span>‹ › step through the functions (or 1–8); the faders show the one you pick. Subtotal has no filter, so it has six.</span></div>
       <div><b>FADERS</b><span>Eight faders, one per channel, for the chosen function. Drag with as many fingers as you like; each finger moves its own fader. ← → pick a channel and ↑ ↓ move it from the keyboard (Shift for bigger steps).</span></div>
@@ -291,7 +292,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>OSC · FILTER · DELAY</b><span>Bend all eight values of their function at once: the whole system higher or lower, brighter or darker, shorter or longer, keeping the faders' shape.</span></div>
       <div><b>FLOW</b><span>Moves the preset's hidden settings between their two stored extremes: modulation depth, resonance, smoothing and the normaliser's floor (below). The same position does something different in every preset.</span></div>
       <div><b>VOLUME</b><span>The listening level of this page. It is not part of a scene or a preset.</span></div>
-      <div><b>PRESETS</b><span>128 places in 8 octaves of 16 (the numbers 1–8 above them). 1–89 are the original's bank, in its order and with its names; 90–128 start empty. A preset is an instrument: its hidden settings are fixed and can't be changed, here or in the original. What you change and save are its scenes. Tap a preset to play it from scene 1. SAVE, then another preset: the one playing is copied there with all its scenes (and what plays now in the current scene), replacing what was there; that is how you start a variation of a preset in a place of its own. E1–E14 beside the number is its engine (below).</span></div>
+      <div><b>PRESETS</b><span>128 places in 8 octaves of 16 (the numbers 1–8 above them). 1–89 are the original's bank, in its order and with its names. A preset is an instrument: its hidden settings are fixed and can't be changed, here or in the original. What you change and save are its scenes. Tap a preset and it plays the scene you last played in it (scene 1 the first time). Hold a preset 1 s and every control returns to the original's settings; the header shows ORIG, and SAVE then a scene keeps them. E1–E14 beside the number is its engine (below).</span></div>
       <div><b>REVERB</b><span>SIZE, DECAY, CUT and MIX. CUT is one slider with two ends: the low cut and the high cut of what goes back into the mix. SEND adds the reverb beside the dry sound; INSERT puts the whole sound through it, and MIX sets the balance.</span></div>
       <div><b>GLUE</b><span>A bus compressor on the sum: THRESHOLD, MAKEUP, RELEASE and DRY/WET, with the ratio beside the title. The meter shows how much it is pressing down.</span></div>
     </div>
@@ -356,7 +357,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>FLOW</b><span>Five settings, each stored twice (FLOW at 0 and at 100) and separately for each mode: FM depth, AM depth, filter resonance, smoothing (how fast pitch, delay and level respond) and the normaliser's floor. FLOW blends between the two; changing mode switches to that mode's set.</span></div>
       <div><b>LEVEL</b><span>The preset's output level: the original's OUT knob (−36 to +18 dB). It was on Reaktor's panel; here it isn't, so it travels with the preset.</span></div>
     </div>
-    <p>The 89 originals are kept exactly as designed, in their order and with their names: each one is a composed work. Underneath, they share 14 engines, sets of hidden ranges and FLOW settings: 56 presets use the first, 16 the second, 5 the third, and the rest are smaller families or stand alone. The small E1–E14 beside each preset's number shows its engine, so you can see which pieces are written for the same instrument. A preset you save keeps the engine of the one you started from.</p>
+    <p>The 89 originals are kept exactly as designed, in their order and with their names: each one is a composed work. Underneath, they share 14 engines, sets of hidden ranges and FLOW settings: 56 presets use the first, 16 the second, 5 the third, and the rest are smaller families or stand alone. The small E1–E14 beside each preset's number shows its engine, so you can see which pieces are written for the same instrument.</p>
 
     <h3>CREDITS</h3>
     <p>Skrewell, its design and its presets: Alexander Potekhin aka Lazyfish, published here with his permission. This version: Shai Levy. Code: <a href="https://github.com/shailevy-stack/skrewell-web">github.com/shailevy-stack/skrewell-web</a>. Built on fm1-base and felucca-bsp (Felucca by Leo Kuroshita, Hügelton Instruments).</p>
@@ -449,6 +450,7 @@ const S = {
   verb: [0.6, 0.45, 0, 0.25], hicut: 1, insert: false,
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
   fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false,
+  last: {},                                     /* the scene last played in each preset: a preset comes back on it */
   presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
   migrated: new Set(), fresh: false,
   running: false, gr: 1, vol: 0.8, morph: 0,
@@ -616,15 +618,24 @@ function recallScene(j) {
   const sc = sceneOf(S.preset, j);
   if (!sc) { say('EMPTY', 'SCENE ' + (j + 1)); return; }
   playScene(sc);
-  S.scene = j;
+  S.scene = j; S.last[S.preset] = j;
   say(sc.loop ? 'LOOP' : 'SCENE', String(j + 1));
   presetsUi(); settingsDirty();
 }
-function recallPreset(k) {
+function recallPreset(k) {                        /* a preset comes back on the scene last played in it */
   if (!presetFilled(k)) { say('EMPTY', 'PRESET'); return; }
-  playScene(sceneOf(k, 0));
-  S.preset = k; S.scene = 0;
-  say('PRESET', shortName(presetName(k)));
+  let j = S.last[k] | 0;
+  if (!sceneOf(k, j)) j = 0;
+  playScene(sceneOf(k, j));
+  S.preset = k; S.scene = j; S.last[k] = j;
+  say('PRESET', shortName(presetName(k)) + (j ? ' · S' + (j + 1) : ''));
+  presetsUi(); settingsDirty();
+}
+function recallOriginal(k) {                      /* long press: the original's panel, unsaved (scene -1) until SAVE + a scene */
+  if (k >= BANK.length) { say('NO ORIGINAL', 'AN EMPTY PRESET'); return; }
+  playScene({ patch: BANK[k], fx: null, loop: null });
+  S.preset = k; S.scene = -1;
+  say('ORIGINAL', 'SAVE + A SCENE KEEPS IT');
   presetsUi(); settingsDirty();
 }
 function sceneNow() {
@@ -639,24 +650,9 @@ function ownPreset(k) {                           /* the player's record for pre
 function storeScene(j) {                          /* SAVE + a scene: what plays now, over whatever was there */
   const p = ownPreset(S.preset);
   p.scenes[j] = sceneNow();
-  S.scene = j;
+  S.scene = j; S.last[S.preset] = j;
   say(p.scenes[j].loop ? 'STORED + LOOP' : 'STORED', 'SCENE ' + (j + 1));
   presetsUi(); recUi(); savePreset(S.preset); settingsDirty();
-}
-function storePreset(k) {                         /* SAVE + a preset slot: this preset, its scenes and what plays now */
-  if (k === S.preset) { storeScene(S.scene); return; }
-  const from = S.presets[S.preset], cur = sceneNow(), old = S.presets[k];
-  const scenes = new Array(NSCENES).fill(null);
-  for (let j = 0; j < NSCENES; j++) { const sc = from ? from.scenes[j] : null; if (sc) scenes[j] = { patch: new Uint8Array(sc.patch), fx: sc.fx, loop: sc.loop }; }
-  scenes[S.scene] = cur;
-  let name;
-  if (k < BANK.length && samePatch(cur.patch, BANK[k])) name = '';
-  else if (old && old.name) name = old.name;
-  else name = makeName(k);
-  S.presets[k] = { name, base: new Uint8Array(from ? from.base : (S.preset < BANK.length ? BANK[S.preset] : cur.patch)), scenes };
-  S.preset = k;
-  say(cur.loop ? 'STORED + LOOP' : 'STORED', shortName(presetName(k)));
-  presetsUi(); recUi(); savePreset(k); settingsDirty();
 }
 
 /* ---------- storage: the viewer's own space in this page's database, or this browser ----------
@@ -667,7 +663,7 @@ const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 function presetDoc(k) { const p = S.presets[k]; return p ? { name: p.name, base: b64(p.base) } : null; }
 function sceneDoc(sc) { return sc ? { patch: b64(sc.patch), fx: sc.fx, loop: sc.loop } : null; }
 const STORE_V = 4;                              /* 4: a fresh start for presets + scenes (older saves are dropped) */
-function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, oct: S.oct, vol: S.vol }; }
+function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, last: S.last, oct: S.oct, vol: S.vol }; }
 function lsSet(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 async function dbSet(id, d) { if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc(id); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} } }
@@ -722,6 +718,7 @@ function applySettingsDoc(d) {
   const pk = d.preset !== undefined ? d.preset : d.slot;
   if (pk >= 0 && pk < NSLOTS) S.preset = pk | 0;
   if (d.scene >= 0 && d.scene < NSCENES) S.scene = d.scene | 0;
+  if (d.last && typeof d.last === 'object') for (const [k, j] of Object.entries(d.last)) if (k >= 0 && k < NSLOTS && j >= 0 && j < NSCENES) S.last[k | 0] = j | 0;
   if (d.oct >= 0 && d.oct < NOCT) S.oct = d.oct | 0;
   if (d.vol >= 0 && d.vol <= 1) S.vol = +d.vol;
   if (d.morph >= 0 && d.morph <= 1) S.morph = +d.morph;
@@ -1066,22 +1063,31 @@ function scenesUi() {
     b.classList.toggle('lp', !!(sc && sc.loop));
     b.title = sc ? 'Scene ' + (j + 1) + (sc.loop ? ' (with a loop)' : '') : 'Empty scene';
   });
-  document.getElementById('scenetag').textContent = 'S' + (S.scene + 1);
+  document.getElementById('scenetag').textContent = S.scene < 0 ? 'ORIG' : 'S' + (S.scene + 1);
 }
+const HOLD_MS = 1000;                             /* long press on a preset: its original panel */
 function presetsUi() {
   const box = document.getElementById('slots');
   if (!box.childElementCount) {
     for (let i = 0; i < 16; i++) {
       const b = document.createElement('button'); b.className = 'slot';
-      b.innerHTML = '<span class="n"><span class="no"></span><span class="eng"></span></span><span class="nm"></span><span class="l" hidden></span>';
+      b.innerHTML = '<span class="n"><span class="no"></span><span class="eng"></span></span><span class="nm"></span><span class="l" hidden></span><span class="hold"></span>';
+      let holdT = 0, raf = 0, t0 = 0;
+      const stop = () => { clearTimeout(holdT); cancelAnimationFrame(raf); b.querySelector('.hold').style.width = '0'; };
       b.addEventListener('contextmenu', (e) => e.preventDefault());
       b.addEventListener('pointerdown', (e) => {
         if (e.button) return;
         const k = S.oct * 16 + i;
-        if (S.armed) { storePreset(k); S.armed = false; saveUi(); return; }
+        if (S.armed) { S.armed = false; saveUi(); }
         recallPreset(k);
+        if (k >= BANK.length) return;
+        t0 = performance.now();
+        const grow = () => { b.querySelector('.hold').style.width = Math.min(100, (performance.now() - t0) / (HOLD_MS / 100)) + '%'; raf = requestAnimationFrame(grow); };
+        raf = requestAnimationFrame(grow);
+        holdT = setTimeout(() => { stop(); recallOriginal(k); }, HOLD_MS);
       });
-      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const k = S.oct * 16 + i; if (S.armed) { storePreset(k); S.armed = false; saveUi(); } else recallPreset(k); } });
+      b.addEventListener('pointerup', stop); b.addEventListener('pointerleave', stop); b.addEventListener('pointercancel', stop);
+      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const k = S.oct * 16 + i; if (e.shiftKey) recallOriginal(k); else recallPreset(k); } });
       box.append(b);
     }
   }
@@ -1096,8 +1102,7 @@ function presetsUi() {
     b.querySelector('.l').textContent = nsc + 'S';
     b.classList.toggle('empty', !filled);
     b.classList.toggle('cur', k === S.preset);
-    b.classList.toggle('armed', S.armed);
-    b.title = filled ? presetName(k) + (eng ? ' · engine E' + eng : '') + (p ? ' (yours, ' + Math.max(1, nsc) + ' scenes)' : ' (original)') : 'Empty preset';
+    b.title = filled ? presetName(k) + (eng ? ' · engine E' + eng : '') + ' · ' + Math.max(1, nsc) + (nsc > 1 ? ' scenes' : ' scene') + (k < BANK.length ? ' · hold: the original' : '') : 'Empty preset';
   });
   scenesUi(); headerUi();
 }
