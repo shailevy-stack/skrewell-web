@@ -20,6 +20,7 @@ class SkrewellProc extends AudioWorkletProcessor {
       case 'vol': this.vol = m.x; break;
       case 'pf': this.dv().setFloat32(m.off, m.x, true); break;
       case 'pm': w.set_mode(m.m); break;
+      case 'morph': w.morph(m.ms); break;
       case 'patch': new Uint8Array(w.memory.buffer, w.patch_ptr(), w.patch_size()).set(m.bytes); break;
       case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4], m.a[5], m.a[6]); break;
       case 'glue': w.set_glue(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4]); break;

@@ -95,16 +95,36 @@ void skr_init(skr_engine *e, float sr) {
     for (int sh = 1; sh < 8; sh++) lp_coef(e->dlp[sh], 0.4f * sr / (float)(1u << sh), sr);
 }
 
-void skr_load(skr_engine *e, const skr_patch *p) { e->p = *p; }
-
 #define SKR_GLIDE_MS 15.f                       /* parameter smoothing: a knob step becomes a short glide, not a click */
+void skr_load(skr_engine *e, const skr_patch *p) { e->p = *p; }
+void skr_morph(skr_engine *e, float ms) {
+    if (ms <= SKR_GLIDE_MS || !e->ps_ok) { e->morph_len = 0.f; return; }
+    e->m0 = e->ps;
+    e->morph_t = 0.f;
+    e->morph_len = ms * 0.001f * e->sr;
+}
+
 static void patch_glide(skr_engine *e, unsigned n) {
     const unsigned nf = (unsigned)((sizeof(skr_patch) - __builtin_offsetof(skr_patch, bars)) / sizeof(float));
     float *a = &e->ps.bars[0][0];
     const float *b = &e->p.bars[0][0];
-    if (!e->ps_ok || e->ps.mode != e->p.mode) {  /* first block, or a new mode: no glide */
+    if (!e->ps_ok) {                             /* first block: no glide */
         e->ps = e->p;
         e->ps_ok = 1;
+        return;
+    }
+    if (e->morph_len > 0.f) {                    /* a morph: an S-curve from where it started */
+        const float *z = &e->m0.bars[0][0];
+        float k = (e->morph_t += (float)n) / e->morph_len;
+        if (k >= 1.f) { k = 1.f; e->morph_len = 0.f; }
+        k = k * k * (3.f - 2.f * k);
+        e->ps.mode = e->p.mode;
+        for (unsigned i = 0; i < nf; i++)
+            a[i] = z[i] + (b[i] - z[i]) * k;
+        return;
+    }
+    if (e->ps.mode != e->p.mode) {               /* a new mode: no glide */
+        e->ps = e->p;
         return;
     }
     float cb = 1.f - fm_exp2f(-(float)n / (e->sr * SKR_GLIDE_MS * 0.001f) * 1.4426950f);

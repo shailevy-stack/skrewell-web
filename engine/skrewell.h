@@ -84,6 +84,8 @@ typedef struct {
     skr_patch p;                               /* the patch as set */
     skr_patch ps;                              /* ... as the engine plays it: every value glides to p (~15 ms) */
     uint8_t ps_ok;
+    skr_patch m0;                              /* a morph's starting point (skr_morph) */
+    float morph_t, morph_len;                  /* samples into the morph, and its length (0: none) */
     skr_glue glue;
     skr_verb verb;
     uint8_t mute;
@@ -99,6 +101,9 @@ typedef struct {
 void skr_init(skr_engine *e, float sample_rate);
 void skr_default_patch(skr_patch *p);
 void skr_load(skr_engine *e, const skr_patch *p);   /* keeps the running state, like Reaktor */
+/* the next patch change (a snapshot recall) moves there over ms milliseconds, an S-curve from what plays now;
+ * ms <= 15: the usual 15 ms glide. Moves made during it head for their new values the same way. */
+void skr_morph(skr_engine *e, float ms);
 /* Render n stereo frames, float -1..1, interleaved or split. scope (may be NULL) gets
  * n*2*SKR_NV floats: for every frame, each voice's x,y scope point. */
 void skr_render(skr_engine *e, float *outL, float *outR, unsigned n, float *scope);

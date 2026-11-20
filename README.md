@@ -8,6 +8,7 @@ A browser version of SKREWELL, the M-VAVE FM-1 firmware: a self-modulating drone
 - Reverb as a send or an insert, with a low cut / high cut on its return; glue compressor.
 - 128 slots in 8 octaves (1–89: the original's Bank 1), made-up names, hold a slot 4 s for its original preset.
 - REC: record moves (only the controls you touch), loop, overdub; hold to clear.
+- Tap the scope for a full-screen scope, tap again for the controls. Tap the SKREWELL title for settings (snapshot MORPH time) and info.
 
 ## Build
 

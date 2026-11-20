@@ -36,5 +36,7 @@ EXPORT(set_mode) void w_set_mode(int m) { E.p.mode = (uint8_t)(m < 0 ? 0 : m > 2
 EXPORT(get_mode) int w_get_mode(void) { return E.p.mode; }
 EXPORT(set_verb) void w_set_verb(float size, float decay, float damp, float mix, float lc_hz, float hc_hz, int insert) { E.verb = (skr_verb){size, decay, damp, mix, lc_hz, hc_hz, (uint8_t)(insert != 0)}; }
 EXPORT(set_glue) void w_set_glue(float thr, float ratio, float rel, float mk, float mix) { E.glue = (skr_glue){thr, ratio, 10.f, rel, mk, mix}; }
+EXPORT(ps_bar) float w_ps_bar(int f, int v) { return E.ps.bars[f & 7][v & 7]; }   /* what plays (tests) */
+EXPORT(morph) void w_morph(float ms) { skr_morph(&E, ms); }
 EXPORT(glue_gain) float w_glue_gain(void) { return E.gl_gain; }
 EXPORT(set_scope_mix) void w_set_scope_mix(float x, float y) { E.scX = x; E.scY = y; }
