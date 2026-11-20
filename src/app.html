@@ -790,7 +790,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 async function startAudio() {
   if (ctx) return true;
   try {
-    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
     try { await ctx.audioWorklet.addModule('worklet.js'); }      /* its own file (the artifact's policy may refuse blob: code) */
     catch (e1) {                                                  /* a single-file copy: the same code, from this page */
       const url = URL.createObjectURL(new Blob([document.getElementById('worklet').textContent], { type: 'application/javascript' }));
