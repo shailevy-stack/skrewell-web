@@ -62,13 +62,21 @@ body.info .word { text-decoration: underline; text-underline-offset: 5px; }
 body.fullscope .app { opacity: 0; pointer-events: none; }
 #scopetap { position: fixed; inset: 0; z-index: 5; display: none; touch-action: manipulation; }
 body.fullscope #scopetap { display: block; }
+/* scene, mode and function rows on one grid: labels and < in the left column, SAVE and > in the right,
+   the scene cells, the mode buttons and the function name share the middle column's edges */
+.ctl { display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 10px 8px; align-items: stretch; }
+.ctl > .lbl { align-self: center; }
+.ctl > button { padding: 6px 0; text-align: center; }
+#fnprev, #fnnext { font-size: 15px; }
+.modes3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.modes3 button { border-right-width: 0; padding: 6px 4px; line-height: 1.2; }
+.modes3 button:last-child { border-right-width: 1px; }
 /* scenes: 8 per preset */
-.scenerow { flex-wrap: nowrap; }
-.scenes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; flex: 1; min-width: 0; }
+.scenes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; min-width: 0; }
 .scene { padding: 6px 0; text-align: center; font-variant-numeric: tabular-nums; position: relative; }
 .scene.empty { border-style: dashed; color: var(--faint); }
 .scene.cur { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.scene.armed { border-color: var(--ink); border-style: solid; color: var(--ink); }
+.scene.armed { border: 1px solid var(--ink); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }   /* SAVE armed: every cell bright, ready to take the scene */
 .scene.cur.armed { color: var(--bg); }
 .scene.lp::after { content: ''; position: absolute; top: 3px; right: 3px; width: 4px; height: 4px; background: currentColor; }
 /* settings + info */
@@ -127,7 +135,7 @@ body.info .main-card, body.info .scopehint { display: none; }
 .slot.empty { border-style: dashed; color: var(--faint); }
 .slot.cur { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .slot.cur .n { color: var(--bg); }
-.slot.armed { border-color: var(--ink); }
+.slot.armed { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); color: var(--ink); }
 .slot .hold { position: absolute; left: 0; bottom: 0; height: 2px; background: currentColor; width: 0; }
 
 .fx { display: grid; gap: 8px; }
@@ -163,7 +171,9 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   .app { padding: 0 12px 12px; }
   .word { font-size: 12px; letter-spacing: .14em; }
   #modetag { display: none; }
-  .scenerow #save { padding: 6px 6px; font-size: 11px; }
+  .ctl { grid-template-columns: 48px minmax(0, 1fr) 48px; gap: 10px 6px; }
+  .ctl > button { font-size: 11px; }
+  .modes3 button { font-size: 10px; letter-spacing: .02em; }
   header { gap: 8px; }
   header button { padding: 6px 8px; }
   .msg b { margin-right: 4px; }
@@ -173,7 +183,6 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   .knob .lbl { font-size: 9px; letter-spacing: .02em; }
   .fxrow { grid-template-columns: 8ch minmax(0, 1fr) 8ch; gap: 8px; }
   .fxrow .lbl { font-size: 10px; letter-spacing: .04em; }
-  #modes button { padding: 6px 8px; font-size: 11px; }
 }
 </style>
 </head>
@@ -197,20 +206,17 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <div class="window main-card" id="window" title="Tap the scope: full screen"></div>
 
   <section class="card main-card">
-    <div class="row scenerow">
+    <div class="ctl">
       <span class="lbl">Scene</span>
       <div class="scenes" id="scenes"></div>
       <button id="save" title="Arm, then tap a scene or a preset to store into it">Save</button>
-    </div>
-    <div class="row">
       <span class="lbl">Mode</span>
-      <div class="seg" id="modes">
+      <div class="modes3" id="modes">
         <button data-m="0" title="Implant Quad (Z)">Implant Quad</button>
         <button data-m="1" title="Xung Tekh (X)">Xung Tekh</button>
         <button data-m="2" title="Subtotal (C)">Subtotal</button>
       </div>
-    </div>
-    <div class="fnrow">
+      <span></span>
       <button id="fnprev" aria-label="Previous function">&lt;</button>
       <div class="fnname" id="fnname"><span class="no">1</span><span class="nm">OSC FREQ</span><span class="of">1/8</span></div>
       <button id="fnnext" aria-label="Next function">&gt;</button>
@@ -929,7 +935,7 @@ function settingRow(box, label, get, set, fmt) {
 function buildFx() {
   fxSync.length = 0;
   const st = document.getElementById('settings'); st.innerHTML = '';
-  const fxRow = document.createElement('div'); fxRow.className = 'fxrow';
+  const fxRow = document.createElement('div'); fxRow.className = 'fxrow'; fxRow.style.marginBottom = '14px';
   fxRow.innerHTML = '<span class="lbl">FX + GLUE</span><span class="seg small" id="fxmode"><button data-g="0">Per scene</button><button data-g="1">Global</button></span><span></span>';
   st.append(fxRow);
   const fxSyncMode = () => fxRow.querySelectorAll('button').forEach((b) => b.classList.toggle('on', (+b.dataset.g === 1) === S.fxGlobal));
@@ -1041,7 +1047,7 @@ function presetsUi() {
 function saveUi() {
   const s = document.getElementById('save');
   s.classList.toggle('on', S.armed);
-  s.textContent = S.armed ? 'Pick a scene or preset' : 'Save';
+  s.setAttribute('aria-pressed', String(S.armed));
   presetsUi();
 }
 
