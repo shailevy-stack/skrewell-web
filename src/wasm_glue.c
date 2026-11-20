@@ -38,5 +38,7 @@ EXPORT(set_verb) void w_set_verb(float size, float decay, float damp, float mix,
 EXPORT(set_glue) void w_set_glue(float thr, float ratio, float rel, float mk, float mix) { E.glue = (skr_glue){thr, ratio, 10.f, rel, mk, mix}; }
 EXPORT(ps_bar) float w_ps_bar(int f, int v) { return E.ps.bars[f & 7][v & 7]; }   /* what plays (tests) */
 EXPORT(morph) void w_morph(float ms) { skr_morph(&E, ms); }
+EXPORT(ps_ptr) skr_patch *w_ps(void) { return &E.ps; }                 /* what plays now (a morph on the way) */
+EXPORT(morphing) int w_morphing(void) { return E.morph_len > 0.f; }
 EXPORT(glue_gain) float w_glue_gain(void) { return E.gl_gain; }
 EXPORT(set_scope_mix) void w_set_scope_mix(float x, float y) { E.scX = x; E.scY = y; }

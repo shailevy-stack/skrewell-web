@@ -423,7 +423,8 @@ class SkrewellProc extends AudioWorkletProcessor {
     const sc = new Float32Array(mem, w.scope_ptr(), n * 16);
     for (let i = 0; i < n; i += 2) { this.sbuf.set(sc.subarray(i * 16, i * 16 + 16), this.sn); this.sn += 16; }
     if (this.sn >= this.sbuf.length) {
-      this.port.postMessage({ c: 'scope', pts: this.sbuf, g: w.glue_gain() }, [this.sbuf.buffer]);
+      const mo = w.morphing(), ps = mo ? new Float32Array(new Float32Array(mem, w.ps_ptr() + 4, 68)) : null;   /* a morph: the bars and knobs as they sound */
+      this.port.postMessage({ c: 'scope', pts: this.sbuf, g: w.glue_gain(), ps }, ps ? [this.sbuf.buffer, ps.buffer] : [this.sbuf.buffer]);
       this.sbuf = new Float32Array(4 * 64 * 16); this.sn = 0;
     }
     return true;
@@ -461,7 +462,7 @@ const S = {
   last: {},                                     /* the scene last played in each preset: a preset comes back on it */
   presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
   migrated: new Set(), fresh: false,
-  running: false, gr: 1, vol: 0.8, morph: 0,
+  running: false, gr: 1, vol: 0.8, morph: 0, ps: null,
 };
 S.dv = new DataView(S.patch.buffer);
 let node = null, ctx = null, dirty = true;
@@ -857,7 +858,7 @@ async function startAudio() {
     }
     node = new AudioWorkletNode(ctx, 'skrewell', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { bytes: WASM } });
     node.connect(ctx.destination);
-    node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts); S.gr = e.data.g; } else if (e.data.c === 'cap') capDone(e.data); };
+    node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts); S.gr = e.data.g; if (e.data.ps || S.ps) { S.ps = e.data.ps; dirty = true; } } else if (e.data.c === 'cap') capDone(e.data); };
     loadPatch(S.patch); verbApply(); glueApply(); post({ c: 'vol', x: S.vol });
     return true;
   } catch (e) {
@@ -870,7 +871,7 @@ async function togglePlay() {
   if (ctx.state !== 'running') { try { await ctx.resume(); } catch (e) {} }
   S.running = !S.running;
   post({ c: 'run', on: S.running });
-  if (S.running) wakeOn(); else wakeOff();
+  if (S.running) wakeOn(); else { wakeOff(); S.ps = null; dirty = true; }
   document.getElementById('play').classList.toggle('on', S.running);
   document.getElementById('play').textContent = S.running ? 'Stop' : 'Play';
   document.getElementById('scopehint').hidden = S.running;
@@ -899,13 +900,15 @@ function scopeDraw() {
 /* ---------- the faders ---------- */
 const bc = document.getElementById('bars'), bctx = bc.getContext('2d');
 const GAP = 14, TOP = 12, BOT_PAD = 46;
+/* what to show: during a morph the faders and knobs ride with the sound (the engine's values on the way), else their own */
+function shown(id) { return S.ps && id < P_MODE ? S.ps[id] : pget(id); }
 function barsDraw() {
   const Wd = bc.width, H = bc.height, f = curFn(), bw = (Wd - GAP * 9) / 8, bot = H - BOT_PAD;
   bctx.clearRect(0, 0, Wd, H);
   bctx.font = '500 22px ' + getComputedStyle(document.body).fontFamily;
   bctx.textAlign = 'center'; bctx.textBaseline = 'middle';
   for (let v = 0; v < 8; v++) {
-    const x = GAP + v * (bw + GAP), val = pget(f * 8 + v), h = (bot - TOP) * val;
+    const x = GAP + v * (bw + GAP), val = shown(f * 8 + v), h = (bot - TOP) * val;
     const sel = S.edit === 0 && v === S.chan, all = S.edit !== 0;
     bctx.fillStyle = sel ? '#fff' : '#5e5e5e';
     bctx.fillRect(x + 6, bot - h, bw - 12, h);
@@ -972,7 +975,7 @@ function knobSvg(v) {
 const knobEls = [];
 function buildKnobs() {
   const box = document.getElementById('knobs');
-  const defs = KNOB_NAME.map((n, k) => ({ n, get: () => pget(P_KNOB0 + k), set: (x) => pset(P_KNOB0 + k, x), fmt: (x) => Math.round(x * 100) }));
+  const defs = KNOB_NAME.map((n, k) => ({ n, get: () => pget(P_KNOB0 + k), show: () => shown(P_KNOB0 + k), set: (x) => pset(P_KNOB0 + k, x), fmt: (x) => Math.round(x * 100) }));
   defs.push({ n: 'VOLUME', get: () => S.vol, set: (x) => { S.vol = clamp01(x); post({ c: 'vol', x: S.vol }); settingsDirty(); }, fmt: (x) => Math.round(x * 100) });
   for (const d of defs) {
     const el = document.createElement('div');
@@ -991,7 +994,7 @@ function buildKnobs() {
 }
 function knobsUi() {
   for (const k of knobEls) {
-    const v = k.d.get();
+    const v = k.d.show ? k.d.show() : k.d.get();
     if (Math.abs(v - k.last) < 1e-4) continue;
     k.last = v;
     k.el.querySelector('.g').innerHTML = knobSvg(v);
@@ -1103,7 +1106,7 @@ function fnsUi() {
   document.querySelectorAll('#modes button').forEach((b) => b.classList.toggle('on', +b.dataset.m === m));
   document.querySelectorAll('#edits button').forEach((b) => b.classList.toggle('on', +b.dataset.e === S.edit));
   document.getElementById('chan').textContent = S.edit === 0 ? String(S.chan + 1) : ['', 'ALL · WRAP', 'ALL · RAND'][S.edit];
-  document.getElementById('fnval').textContent = S.edit === 0 ? Math.round(pget(curFn() * 8 + S.chan) * 100) : '';
+  document.getElementById('fnval').textContent = S.edit === 0 ? Math.round(shown(curFn() * 8 + S.chan) * 100) : '';
   document.getElementById('modetag').textContent = MODE_TAG[m];
   document.getElementById('modetag').title = MODE_NAME[m];
 }
