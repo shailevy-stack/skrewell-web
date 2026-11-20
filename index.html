@@ -61,11 +61,14 @@ body.fullscope #scope { top: calc((100vh - var(--ss)) / 2); width: min(100vw, 10
 #scopetap { position: fixed; inset: 0; z-index: 5; display: none; touch-action: manipulation; }
 body.fullscope #scopetap { display: block; }
 /* settings + info */
-#info { display: none; }
+#info { display: none; gap: 16px; padding: 16px; }
+#info .sep { height: 0; border-top: 1px solid var(--rule); margin: 18px 0 6px; }
+#info h2 { margin-top: 2px; }
+#info p, #info .modes { line-height: 1.5; }
 body.info #info { display: grid; }
-body.info .main-card { display: none; }
+body.info .main-card, body.info .scopehint { display: none; }
 #info p { margin: 0; max-width: 64ch; color: #d6d6d6; }
-#info h3 { margin: 4px 0 0; font-size: 12px; font-weight: 500; letter-spacing: .16em; }
+#info h3 { margin: 12px 0 0; font-size: 12px; font-weight: 500; letter-spacing: .16em; }
 #info a { color: var(--ink); }
 #info svg { width: 100%; height: auto; display: block; }
 #info .modes { display: grid; gap: 6px; }
@@ -238,10 +241,11 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   </section>
 
   <section class="card" id="info">
-    <h2><span class="k">SETTINGS</span></h2>
+    <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
     <p class="hint">Morph: how long a snapshot takes to arrive from what plays now. 0 = at once (a 15 ms glide).</p>
 
+    <div class="sep" aria-hidden="true"></div>
     <h2><span class="k">INFO</span>What it is</h2>
     <p>SKREWELL is a self-playing drone and texture instrument: eight channels that modulate each other, feed back through their own delays and never quite settle. You don't play notes. You shape a system and listen to what it does. It is a rebuild of Skrewell, an ensemble for Native Instruments Reaktor 5 by Alexander Potekhin aka Lazyfish, with all 89 presets of its first bank, made first as firmware for the M-VAVE FM-1 and then as this page.</p>
 
@@ -957,6 +961,8 @@ document.getElementById('window').addEventListener('click', () => fullScope(true
 document.getElementById('scopetap').addEventListener('click', () => fullScope(false));
 document.addEventListener('click', (e) => { if (e.target === document.body || e.target === document.documentElement) fullScope(true); });   /* (the scope beside the controls, on a wide screen) */
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('fullscope')) fullScope(false); });
+/* ---------- reload (a home-screen app has no browser reload) ---------- */
+document.getElementById('reload').addEventListener('click', () => { try { if (node) post({ c: 'run', on: false }); } catch (e) {} setTimeout(() => location.reload(), 60); });
 /* ---------- the title: settings + info ---------- */
 document.getElementById('title').addEventListener('click', () => {
   const on = !document.body.classList.contains('info');
