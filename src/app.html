@@ -59,9 +59,7 @@ header .pname, header .msg { flex-shrink: 1; }
 body.info .word { text-decoration: underline; text-underline-offset: 5px; }
 /* full-screen scope: a touch on the scope fades every control out; another brings them back */
 .app, .scopehint { transition: opacity .18s ease; }
-#scope { transition: top .18s ease; }
 body.fullscope .app { opacity: 0; pointer-events: none; }
-body.fullscope #scope { top: calc((100vh - var(--ss)) / 2); width: min(100vw, 100vh); height: min(100vw, 100vh); }
 #scopetap { position: fixed; inset: 0; z-index: 5; display: none; touch-action: manipulation; }
 body.fullscope #scopetap { display: block; }
 /* settings + info */
