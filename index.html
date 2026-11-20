@@ -62,6 +62,15 @@ body.info .word { text-decoration: underline; text-underline-offset: 5px; }
 body.fullscope .app { opacity: 0; pointer-events: none; }
 #scopetap { position: fixed; inset: 0; z-index: 5; display: none; touch-action: manipulation; }
 body.fullscope #scopetap { display: block; }
+/* scenes: 8 per preset */
+.scenerow { flex-wrap: nowrap; }
+.scenes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; flex: 1; min-width: 0; }
+.scene { padding: 6px 0; text-align: center; font-variant-numeric: tabular-nums; position: relative; }
+.scene.empty { border-style: dashed; color: var(--faint); }
+.scene.cur { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.scene.armed { border-color: var(--ink); border-style: solid; color: var(--ink); }
+.scene.cur.armed { color: var(--bg); }
+.scene.lp::after { content: ''; position: absolute; top: 3px; right: 3px; width: 4px; height: 4px; background: currentColor; }
 /* settings + info */
 #info { display: none; gap: 16px; padding: 16px; }
 #info .sep { height: 0; border-top: 1px solid var(--rule); margin: 18px 0 6px; }
@@ -154,6 +163,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   .app { padding: 0 12px 12px; }
   .word { font-size: 12px; letter-spacing: .14em; }
   #modetag { display: none; }
+  .scenerow #save { padding: 6px 6px; font-size: 11px; }
   header { gap: 8px; }
   header button { padding: 6px 8px; }
   .msg b { margin-right: 4px; }
@@ -177,6 +187,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <button class="word" id="title" title="Settings and info" aria-pressed="false">SKREWELL</button>
     <span class="slotbox" id="slotno">01</span>
     <span class="pname" id="pname">Miro vs. Mondrian</span>
+    <span class="tag" id="scenetag" title="Scene">S1</span>
     <span class="tag" id="modetag">IQ</span>
     <span class="msg" id="msg" aria-live="polite"></span>
     <button id="play" title="Start / stop (Space)">Play</button>
@@ -186,6 +197,11 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <div class="window main-card" id="window" title="Tap the scope: full screen"></div>
 
   <section class="card main-card">
+    <div class="row scenerow">
+      <span class="lbl">Scene</span>
+      <div class="scenes" id="scenes"></div>
+      <button id="save" title="Arm, then tap a scene or a preset to store into it">Save</button>
+    </div>
     <div class="row">
       <span class="lbl">Mode</span>
       <div class="seg" id="modes">
@@ -217,14 +233,10 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   </section>
 
   <section class="card main-card">
-    <h2><span class="k">SLOTS</span><span id="octlbl">1–16</span></h2>
-    <div class="row">
-      <div class="octs" id="octs"></div>
-      <span class="spacer"></span>
-      <button id="save" title="Arm, then tap a slot to store into it">Save</button>
-    </div>
+    <h2><span class="k">PRESETS</span><span id="octlbl">1–16</span></h2>
+    <div class="octs" id="octs"></div>
     <div class="slots" id="slots"></div>
-    <div class="hint">Tap: recall. Save, then a slot: store. Hold a slot 4 s: its original preset.</div>
+    <div class="hint">Tap a preset: it plays from scene 1. Save, then a preset: copy this one there with its scenes. Hold a preset 4 s: the original.</div>
   </section>
 
   <section class="card main-card">
@@ -245,7 +257,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <section class="card" id="info">
     <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
-    <p class="hint">Morph: how long a snapshot takes to arrive from what plays now. 0 = at once (a 15 ms glide).</p>
+    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide).</p>
 
     <div class="sep" aria-hidden="true"></div>
     <h2><span class="k">INFO</span>What it is</h2>
@@ -288,14 +300,14 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h3>THE EIGHT FUNCTIONS</h3>
     <p>Each function sets one value per channel: OSC FREQ (pitch), FREQ MOD and AMP MOD (which lever modulates), OSC AMP (level), the two filter functions, DELAY (1 ms to 3 s) and FEEDBACK. OSC, FILTER and DELAY bend all eight values at once; FLOW moves the hidden settings between two extremes stored in each preset.</p>
 
-    <h3>SNAPSHOTS</h3>
-    <p>A Skrewell snapshot is more than its faders and knobs. Each one also carries settings that have no control on the panel, here or in the original: they were set by the preset's designer and travel with it. That is why the same fader positions can sound completely different from one preset to the next, and why FLOW does something different in each. When you save your own snapshot, these settings come from the preset you started with.</p>
+    <h3>PRESETS AND SCENES</h3>
+    <p>A Skrewell snapshot is more than its faders and knobs. Each one also carries settings that have no control on the panel, here or in the original: they were set by the preset's designer and travel with it. That is why the same fader positions can sound completely different from one preset to the next, and why FLOW does something different in each. So here a <b>preset</b> is that instrument, its hidden settings locked, and a <b>scene</b> is a state of its panel: mode, faders, knobs, FX and GLUE, and its loop. Each preset holds 8 scenes; scene 1 comes with the preset. Moving between scenes of one preset morphs smoothly, because they share the same hidden settings.</p>
     <div class="modes">
       <div><b>RANGE</b><span>What 0 and 100 mean on the faders: the lowest and highest pitch for OSC FREQ, the lowest and highest frequency for the filters (high-pass, low-pass, cutoff), the shortest and longest DELAY.</span></div>
       <div><b>FLOW</b><span>Five settings, each stored twice (FLOW at 0 and at 100) and separately for each mode: FM depth, AM depth, filter resonance, smoothing (how fast pitch, delay and level respond) and the normaliser's floor. FLOW blends between the two; changing mode switches to that mode's set.</span></div>
       <div><b>LEVEL</b><span>The snapshot's output level.</span></div>
     </div>
-    <p>So the 89 originals are 89 different instruments sharing one panel.</p>
+    <p>So the 89 originals are 89 different instruments sharing one panel. A preset you save copies the hidden settings of the one you started from.</p>
 
     <h3>CREDITS</h3>
     <p>Skrewell, its design and its presets: Alexander Potekhin aka Lazyfish, published here with his permission. This version: Shai Levy. Code: <a href="https://github.com/shailevy-stack/skrewell-web">github.com/shailevy-stack/skrewell-web</a>. Built on fm1-base and felucca-bsp (Felucca by Leo Kuroshita, Hügelton Instruments).</p>
@@ -387,8 +399,9 @@ const S = {
   patch: new Uint8Array(PATCH_N), dv: null,
   verb: [0.6, 0.45, 0, 0.25], hicut: 1, insert: false,
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
-  fn: 0, chan: 0, edit: 0, oct: 0, slot: 0, armed: false,
-  slots: new Array(NSLOTS).fill(null),          /* the player's: {name, patch, loop} */
+  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false,
+  presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
+  migrated: new Set(),
   running: false, gr: 1, vol: 0.8, morph: 0,
 };
 S.dv = new DataView(S.patch.buffer);
@@ -493,11 +506,15 @@ function recUi() {
   b.classList.toggle('blink', R.state === 1 || R.state === 3);
 }
 
-/* ---------- slots ---------- */
-function slotFilled(k) { return !!S.slots[k] || k < BANK.length; }
-function slotName(k) {
-  const s = S.slots[k];
-  if (s) return s.name || (k < BANK.length ? BANK_NAMES[k] : 'SLOT ' + (k + 1));
+/* ---------- presets and scenes ----------
+   A preset is an instrument: the hidden values every snapshot of the original carries (ranges, FLOW pairs, level),
+   locked, plus a name and 8 scenes. A scene is everything on the panel: mode, faders, knobs, FX + GLO (unless they
+   are kept global) and its loop. Presets 1-89 are the original's Bank 1; each has scene 1 from its own panel. */
+const NSCENES = 8;
+function presetFilled(k) { return !!S.presets[k] || k < BANK.length; }
+function presetName(k) {
+  const s = S.presets[k];
+  if (s) return s.name || (k < BANK.length ? BANK_NAMES[k] : 'PRESET ' + (k + 1));
   return k < BANK.length ? BANK_NAMES[k] : 'EMPTY';
 }
 function shortName(n) { const i = n.indexOf(' - '); const s = (i > 0 ? n.slice(0, i) : n).trim(); return s || 'UNTITLED'; }
@@ -511,85 +528,158 @@ function makeName(skip) {
       s += C[r(C.length)] + V[r(V.length)];
       if (s.length < 8 && r(3) === 0 && (i + 1 === syl || s.length + 3 <= 8)) s += E[r(E.length)];
     }
-    if (!S.slots.some((x, k) => x && k !== skip && x.name === s)) return s;
+    if (!S.presets.some((x, k) => x && k !== skip && x.name === s)) return s;
   }
-  return 'SLOT';
+  return 'PRESET';
 }
-const recallWas = new Float32Array(P_VERB0);
+function sceneOf(k, j) {                        /* scene j of preset k, or null (scene 1 always exists) */
+  const p = S.presets[k];
+  if (p && p.scenes[j]) return p.scenes[j];
+  if (j !== 0) return null;
+  if (p) return { patch: p.base, fx: null, loop: null };
+  return k < BANK.length ? { patch: BANK[k], fx: null, loop: null } : null;
+}
+function fxNow() { return { verb: S.verb.slice(), hicut: S.hicut, insert: S.insert, glue: S.glue.slice(), ratio: S.ratio }; }
+function fxApply(fx) {
+  if (!fx) return;
+  S.verb = fx.verb.slice(); S.hicut = fx.hicut; S.insert = fx.insert; S.glue = fx.glue.slice(); S.ratio = fx.ratio;
+  verbApply(); glueApply(); vmodeUi(); document.getElementById('ratio').textContent = fmtRatio(); dirty = true;
+}
+const recallWas = new Float32Array(P_N);
 function loopFollowsRecall(loop) {
   if (loop) { R.ev = loop.ev.map((e) => e.slice()); recStartLoop(loop.len); recUi(); return; }
-  if (R.state === 1 || R.state === 3) { for (let id = 0; id < P_VERB0; id++) if (pget(id) !== recallWas[id]) recNote(id, recallWas[id], pget(id)); }
+  if (R.state === 1 || R.state === 3) { for (let id = 0; id < P_N; id++) if (pget(id) !== recallWas[id]) recNote(id, recallWas[id], pget(id)); }
   else if (R.state === 2) { recClear(); recUi(); }
 }
-function recall(k, original) {
-  const mine = S.slots[k];
-  if (!original && !mine && k >= BANK.length) { say('EMPTY', 'SLOT'); return; }
-  if (original && k >= BANK.length) { say('NO ORIGINAL', 'AN EMPTY SLOT'); return; }
-  for (let id = 0; id < P_VERB0; id++) recallWas[id] = pget(id);
-  post({ c: 'morph', ms: morphMs() });          /* (the engine morphs to the next patch it gets) */
-  loadPatch((!original && mine) ? mine.patch : BANK[k]);
-  S.slot = k;
-  loopFollowsRecall(!original && mine ? mine.loop : null);
-  say(original ? 'ORIGINAL' : (mine && mine.loop ? 'LOOP' : 'SNAPSHOT'), shortName(original ? BANK_NAMES[k] : slotName(k)));
-  slotsUi(); settingsDirty();
+function playScene(sc) {                         /* morph there; its FX + GLO unless global; its loop */
+  for (let id = 0; id < P_N; id++) recallWas[id] = pget(id);
+  post({ c: 'morph', ms: morphMs() });
+  loadPatch(sc.patch);
+  if (!S.fxGlobal && sc.fx) fxApply(sc.fx);
+  loopFollowsRecall(sc.loop);
 }
-function store(k) {
+function recallScene(j) {
+  const sc = sceneOf(S.preset, j);
+  if (!sc) { say('EMPTY', 'SCENE ' + (j + 1)); return; }
+  playScene(sc);
+  S.scene = j;
+  say(sc.loop ? 'LOOP' : 'SCENE', String(j + 1));
+  presetsUi(); settingsDirty();
+}
+function recallPreset(k, original) {
+  if (!original && !presetFilled(k)) { say('EMPTY', 'PRESET'); return; }
+  if (original && k >= BANK.length) { say('NO ORIGINAL', 'AN EMPTY PRESET'); return; }
+  playScene(original ? { patch: BANK[k], fx: null, loop: null } : sceneOf(k, 0));
+  S.preset = k; S.scene = 0;
+  say(original ? 'ORIGINAL' : 'PRESET', shortName(original ? BANK_NAMES[k] : presetName(k)));
+  presetsUi(); settingsDirty();
+}
+function sceneNow() {
   if (R.state === 1) recStartLoop(now() - R.t0);
   const loop = (R.state === 2 || R.state === 3) && R.ev.length ? { len: R.len, ev: R.ev.map((e) => e.slice()) } : null;
-  const old = S.slots[k];
+  return { patch: new Uint8Array(S.patch), fx: fxNow(), loop };
+}
+function ownPreset(k) {                           /* the player's record for preset k (a factory one gets one now) */
+  if (!S.presets[k]) S.presets[k] = { name: '', base: new Uint8Array(k < BANK.length ? BANK[k] : S.patch), scenes: new Array(NSCENES).fill(null) };
+  return S.presets[k];
+}
+function storeScene(j) {                          /* SAVE + a scene: what plays now, over whatever was there */
+  const p = ownPreset(S.preset);
+  p.scenes[j] = sceneNow();
+  S.scene = j;
+  say(p.scenes[j].loop ? 'STORED + LOOP' : 'STORED', 'SCENE ' + (j + 1));
+  presetsUi(); recUi(); savePreset(S.preset); settingsDirty();
+}
+function storePreset(k) {                         /* SAVE + a preset slot: this preset, its scenes and what plays now */
+  if (k === S.preset) { storeScene(S.scene); return; }
+  const from = S.presets[S.preset], cur = sceneNow(), old = S.presets[k];
+  const scenes = new Array(NSCENES).fill(null);
+  for (let j = 0; j < NSCENES; j++) { const sc = from ? from.scenes[j] : null; if (sc) scenes[j] = { patch: new Uint8Array(sc.patch), fx: sc.fx, loop: sc.loop }; }
+  scenes[S.scene] = cur;
   let name;
-  if (k < BANK.length && samePatch(S.patch, BANK[k])) name = '';
+  if (k < BANK.length && samePatch(cur.patch, BANK[k])) name = '';
   else if (old && old.name) name = old.name;
   else name = makeName(k);
-  S.slots[k] = { name, patch: new Uint8Array(S.patch), loop };
-  S.slot = k;
-  say(loop ? 'STORED + LOOP' : 'STORED', shortName(slotName(k)));
-  slotsUi(); recUi(); saveSlot(k); settingsDirty();
+  S.presets[k] = { name, base: new Uint8Array(from ? from.base : (S.preset < BANK.length ? BANK[S.preset] : cur.patch)), scenes };
+  S.preset = k;
+  say(cur.loop ? 'STORED + LOOP' : 'STORED', shortName(presetName(k)));
+  presetsUi(); recUi(); savePreset(k); settingsDirty();
 }
 
-/* ---------- storage: the viewer's own space in this page's database, or this browser ---------- */
+/* ---------- storage: the viewer's own space in this page's database, or this browser ----------
+   one document per preset ("preset-k": name, base) and per stored scene ("scene-k-j": patch, fx, loop) */
 let DB = null, UID = null, settingsT = 0;
 const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); };
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-function slotDoc(k) { const s = S.slots[k]; return s ? { name: s.name, patch: b64(s.patch), loop: s.loop } : null; }
-function settingsDoc() { return { v: 2, morph: S.morph, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, slot: S.slot, oct: S.oct, vol: S.vol }; }
+function presetDoc(k) { const p = S.presets[k]; return p ? { name: p.name, base: b64(p.base) } : null; }
+function sceneDoc(sc) { return sc ? { patch: b64(sc.patch), fx: sc.fx, loop: sc.loop } : null; }
+function settingsDoc() { return { v: 3, morph: S.morph, fxGlobal: S.fxGlobal, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, oct: S.oct, vol: S.vol }; }
 function lsSet(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
-async function saveSlot(k) {
-  const d = slotDoc(k);
-  lsSet('skrewell.slot.' + k, d);
-  if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc('slot-' + k); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} }
+async function dbSet(id, d) { if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc(id); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} } }
+async function savePreset(k) {                     /* the preset and all its scenes (each its own document) */
+  const p = S.presets[k];
+  lsSet('skrewell.preset.' + k, presetDoc(k));
+  await dbSet('preset-' + k, presetDoc(k));
+  for (let j = 0; j < NSCENES; j++) {
+    const d = p ? sceneDoc(p.scenes[j]) : null;
+    lsSet('skrewell.scene.' + k + '.' + j, d);
+    await dbSet('scene-' + k + '-' + j, d);
+  }
 }
 function settingsDirty() {
   clearTimeout(settingsT);
-  settingsT = setTimeout(async () => {
-    const d = settingsDoc(); lsSet('skrewell.settings', d);
-    if (DB && UID) { try { await DB.collection('data/users/' + UID).doc('settings').set(d); } catch (e) {} }
-  }, 1200);
+  settingsT = setTimeout(async () => { const d = settingsDoc(); lsSet('skrewell.settings', d); await dbSet('settings', d); }, 1200);
 }
-function applySlotDoc(k, d) {
-  if (!d || typeof d.patch !== 'string' || !(k >= 0 && k < NSLOTS)) return;
-  try {
-    const p = unb64(d.patch); if (p.length !== PATCH_N) return;
-    const loop = d.loop && Array.isArray(d.loop.ev) && d.loop.len > 0 ? { len: +d.loop.len, ev: d.loop.ev.filter((e) => Array.isArray(e) && e.length === 3 && e[1] >= 0 && e[1] < P_N).slice(0, REC_MAX) } : null;
-    S.slots[k] = { name: typeof d.name === 'string' ? d.name.slice(0, 8).toUpperCase() : '', patch: p, loop };
-  } catch (e) {}
+function okPatch(s) { try { const p = unb64(s); return p.length === PATCH_N ? p : null; } catch (e) { return null; } }
+function okLoop(l) { return l && Array.isArray(l.ev) && l.len > 0 ? { len: +l.len, ev: l.ev.filter((e) => Array.isArray(e) && e.length === 3 && e[1] >= 0 && e[1] < P_N).slice(0, REC_MAX) } : null; }
+function okFx(f) {
+  if (!f || !Array.isArray(f.verb) || f.verb.length !== 4 || !Array.isArray(f.glue) || f.glue.length !== 4) return null;
+  return { verb: f.verb.map((x) => clamp01(+x || 0)), hicut: clamp01(+f.hicut), insert: !!f.insert, glue: f.glue.map((x) => clamp01(+x || 0)), ratio: Math.min(10, Math.max(2, +f.ratio || 4)) };
+}
+function applyPresetDoc(k, d) {
+  if (!d || !(k >= 0 && k < NSLOTS)) return;
+  const base = okPatch(d.base); if (!base) return;
+  const p = S.presets[k] || { scenes: new Array(NSCENES).fill(null) };
+  p.name = typeof d.name === 'string' ? d.name.slice(0, 8).toUpperCase() : ''; p.base = base;
+  S.presets[k] = p;
+}
+function applySceneDoc(k, j, d) {
+  if (!d || !(k >= 0 && k < NSLOTS) || !(j >= 0 && j < NSCENES)) return;
+  const patch = okPatch(d.patch); if (!patch) return;
+  if (!S.presets[k]) S.presets[k] = { name: '', base: new Uint8Array(k < BANK.length ? BANK[k] : patch), scenes: new Array(NSCENES).fill(null) };
+  S.presets[k].scenes[j] = { patch, fx: okFx(d.fx), loop: okLoop(d.loop) };
+}
+function applyOldSlotDoc(k, d) {                   /* (before scenes: a "slot" = a preset whose scene 1 it becomes) */
+  if (!d || typeof d.patch !== 'string' || S.presets[k]) return;
+  const patch = okPatch(d.patch); if (!patch) return;
+  S.presets[k] = { name: typeof d.name === 'string' ? d.name.slice(0, 8).toUpperCase() : '', base: patch, scenes: new Array(NSCENES).fill(null) };
+  S.presets[k].scenes[0] = { patch, fx: null, loop: okLoop(d.loop) };
+  S.migrated.add(k);
 }
 function applySettingsDoc(d) {
   if (!d) return;
-  if (Array.isArray(d.verb) && d.verb.length === 4) { S.verb = d.verb.map((x) => clamp01(+x || 0)); if (d.v !== 2) S.verb[2] = 0; }   /* (before v2, [2] was DAMP) */
+  if (Array.isArray(d.verb) && d.verb.length === 4) { S.verb = d.verb.map((x) => clamp01(+x || 0)); if (!(d.v >= 2)) S.verb[2] = 0; }   /* (before v2, [2] was DAMP) */
   if (d.hicut >= 0 && d.hicut <= 1) S.hicut = +d.hicut;
   if (typeof d.insert === 'boolean') S.insert = d.insert;
+  if (typeof d.fxGlobal === 'boolean') S.fxGlobal = d.fxGlobal;
   if (Array.isArray(d.glue) && d.glue.length === 4) S.glue = d.glue.map((x) => clamp01(+x || 0));
   if (d.ratio >= 2 && d.ratio <= 10) S.ratio = Math.round(d.ratio * 2) / 2;
-  if (d.slot >= 0 && d.slot < NSLOTS) S.slot = d.slot | 0;
+  const pk = d.preset !== undefined ? d.preset : d.slot;
+  if (pk >= 0 && pk < NSLOTS) S.preset = pk | 0;
+  if (d.scene >= 0 && d.scene < NSCENES) S.scene = d.scene | 0;
   if (d.oct >= 0 && d.oct < NOCT) S.oct = d.oct | 0;
   if (d.vol >= 0 && d.vol <= 1) S.vol = +d.vol;
   if (d.morph >= 0 && d.morph <= 1) S.morph = +d.morph;
 }
 function loadLocal() {
-  for (let k = 0; k < NSLOTS; k++) applySlotDoc(k, lsGet('skrewell.slot.' + k));
+  for (let k = 0; k < NSLOTS; k++) {
+    applyPresetDoc(k, lsGet('skrewell.preset.' + k));
+    for (let j = 0; j < NSCENES; j++) applySceneDoc(k, j, lsGet('skrewell.scene.' + k + '.' + j));
+    applyOldSlotDoc(k, lsGet('skrewell.slot.' + k));
+  }
   applySettingsDoc(lsGet('skrewell.settings'));
+  for (const k of S.migrated) { savePreset(k); lsSet('skrewell.slot.' + k, null); }   /* (this browser: in the new form now) */
 }
 async function connectDb() {
   try {
@@ -601,16 +691,19 @@ async function connectDb() {
     const col = db.collection('data/users/' + id);
     const snap = await Promise.race([col.get(), new Promise((_, rej) => setTimeout(() => rej(0), 10000))]);
     DB = db; UID = id;
-    if (snap.empty) {                               /* first visit with an account: bring this browser's slots along */
-      for (let k = 0; k < NSLOTS; k++) if (S.slots[k]) await saveSlot(k);
+    if (snap.empty) {                               /* first visit with an account: bring this browser's presets along */
+      for (let k = 0; k < NSLOTS; k++) if (S.presets[k]) await savePreset(k);
     } else {
-      S.slots.fill(null);
-      for (const d of snap.docs) {
-        if (d.id === 'settings') applySettingsDoc(d.data());
-        else if (d.id.startsWith('slot-')) applySlotDoc(parseInt(d.id.slice(5), 10), d.data());
-      }
-      verbApply(); glueApply(); buildFx(); octUi(); slotsUi();
+      S.presets.fill(null); S.migrated.clear();
+      const docs = snap.docs.map((d) => [d.id, d.data()]);
+      for (const [n, d] of docs) if (n.startsWith('preset-')) applyPresetDoc(parseInt(n.slice(7), 10), d);
+      for (const [n, d] of docs) if (n.startsWith('scene-')) { const [k, j] = n.slice(6).split('-').map((x) => parseInt(x, 10)); applySceneDoc(k, j, d); }
+      for (const [n, d] of docs) if (n.startsWith('slot-')) applyOldSlotDoc(parseInt(n.slice(5), 10), d);
+      for (const [n, d] of docs) if (n === 'settings') applySettingsDoc(d);
+      for (const k of S.migrated) { await savePreset(k); await dbSet('slot-' + k, null); }
+      verbApply(); glueApply(); buildFx(); octUi(); presetsUi();
     }
+    S.migrated.clear();
     document.getElementById('store').textContent = 'Saved in your account';
   } catch (e) {}
 }
@@ -836,6 +929,12 @@ function settingRow(box, label, get, set, fmt) {
 function buildFx() {
   fxSync.length = 0;
   const st = document.getElementById('settings'); st.innerHTML = '';
+  const fxRow = document.createElement('div'); fxRow.className = 'fxrow';
+  fxRow.innerHTML = '<span class="lbl">FX + GLUE</span><span class="seg small" id="fxmode"><button data-g="0">Per scene</button><button data-g="1">Global</button></span><span></span>';
+  st.append(fxRow);
+  const fxSyncMode = () => fxRow.querySelectorAll('button').forEach((b) => b.classList.toggle('on', (+b.dataset.g === 1) === S.fxGlobal));
+  fxRow.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { S.fxGlobal = +b.dataset.g === 1; fxSyncMode(); settingsDirty(); say('FX + GLUE', S.fxGlobal ? 'GLOBAL' : 'PER SCENE'); }));
+  fxSync.push(fxSyncMode); fxSyncMode();
   settingRow(st, 'MORPH', () => S.morph, (x) => { S.morph = x; }, () => { const ms = morphMs(); return ms < 16 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
   const v = document.getElementById('verb'); v.innerHTML = '';
   sliderRow(v, 'SIZE', P_VERB0, (x) => Math.round(x * 100));
@@ -872,57 +971,78 @@ function fnsUi() {
   document.getElementById('modetag').title = MODE_NAME[m];
 }
 function headerUi() {
-  document.getElementById('slotno').textContent = String(S.slot + 1).padStart(2, '0');
-  document.getElementById('pname').textContent = shortName(slotName(S.slot));
+  document.getElementById('slotno').textContent = String(S.preset + 1).padStart(2, '0');
+  document.getElementById('pname').textContent = shortName(presetName(S.preset));
 }
 
-/* ---------- slots ui ---------- */
+/* ---------- presets and scenes ui ---------- */
 function octUi() {
   const box = document.getElementById('octs');
-  if (!box.childElementCount) for (let o = 0; o < NOCT; o++) { const b = document.createElement('button'); b.textContent = o + 1; b.title = 'Octave ' + (o + 1) + ': slots ' + (o * 16 + 1) + '–' + (o * 16 + 16); b.addEventListener('click', () => { S.oct = o; octUi(); slotsUi(); settingsDirty(); }); box.append(b); }
+  if (!box.childElementCount) for (let o = 0; o < NOCT; o++) { const b = document.createElement('button'); b.textContent = o + 1; b.title = 'Octave ' + (o + 1) + ': presets ' + (o * 16 + 1) + '–' + (o * 16 + 16); b.addEventListener('click', () => { S.oct = o; octUi(); presetsUi(); settingsDirty(); }); box.append(b); }
   [...box.children].forEach((b, o) => b.classList.toggle('on', o === S.oct));
   document.getElementById('octlbl').textContent = (S.oct * 16 + 1) + '–' + (S.oct * 16 + 16);
 }
-function slotsUi() {
+function scenesUi() {
+  const box = document.getElementById('scenes');
+  if (!box.childElementCount) {
+    for (let j = 0; j < NSCENES; j++) {
+      const b = document.createElement('button'); b.className = 'scene'; b.textContent = j + 1;
+      b.addEventListener('click', () => { if (S.armed) { storeScene(j); S.armed = false; saveUi(); } else recallScene(j); });
+      box.append(b);
+    }
+  }
+  [...box.children].forEach((b, j) => {
+    const sc = sceneOf(S.preset, j);
+    b.classList.toggle('empty', !sc);
+    b.classList.toggle('cur', j === S.scene);
+    b.classList.toggle('armed', S.armed);
+    b.classList.toggle('lp', !!(sc && sc.loop));
+    b.title = sc ? 'Scene ' + (j + 1) + (sc.loop ? ' (with a loop)' : '') : 'Empty scene';
+  });
+  document.getElementById('scenetag').textContent = 'S' + (S.scene + 1);
+}
+function presetsUi() {
   const box = document.getElementById('slots');
   if (!box.childElementCount) {
     for (let i = 0; i < 16; i++) {
       const b = document.createElement('button'); b.className = 'slot';
-      b.innerHTML = '<span class="n"></span><span class="nm"></span><span class="l" hidden>L</span><span class="hold"></span>';
+      b.innerHTML = '<span class="n"></span><span class="nm"></span><span class="l" hidden></span><span class="hold"></span>';
       let holdT = 0, raf = 0, t0 = 0;
       const stop = () => { clearTimeout(holdT); cancelAnimationFrame(raf); b.querySelector('.hold').style.width = '0'; };
       b.addEventListener('contextmenu', (e) => e.preventDefault());
       b.addEventListener('pointerdown', (e) => {
         if (e.button) return;
         const k = S.oct * 16 + i;
-        if (S.armed) { store(k); S.armed = false; saveUi(); return; }
-        recall(k, false);
+        if (S.armed) { storePreset(k); S.armed = false; saveUi(); return; }
+        recallPreset(k, false);
         t0 = performance.now();
         const grow = () => { b.querySelector('.hold').style.width = Math.min(100, (performance.now() - t0) / 40) + '%'; raf = requestAnimationFrame(grow); };
-        if (k < BANK.length) { raf = requestAnimationFrame(grow); holdT = setTimeout(() => { stop(); recall(k, true); }, 4000); }
+        if (k < BANK.length) { raf = requestAnimationFrame(grow); holdT = setTimeout(() => { stop(); recallPreset(k, true); }, 4000); }
       });
       b.addEventListener('pointerup', stop); b.addEventListener('pointerleave', stop); b.addEventListener('pointercancel', stop);
-      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const k = S.oct * 16 + i; if (S.armed) { store(k); S.armed = false; saveUi(); } else recall(k, false); } });
+      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const k = S.oct * 16 + i; if (S.armed) { storePreset(k); S.armed = false; saveUi(); } else recallPreset(k, false); } });
       box.append(b);
     }
   }
   [...box.children].forEach((b, i) => {
-    const k = S.oct * 16 + i, filled = slotFilled(k);
+    const k = S.oct * 16 + i, filled = presetFilled(k), p = S.presets[k];
+    const nsc = p ? p.scenes.filter(Boolean).length : 0;
     b.querySelector('.n').textContent = String(k + 1).padStart(2, '0');
-    b.querySelector('.nm').textContent = filled ? shortName(slotName(k)) : 'empty';
-    b.querySelector('.l').hidden = !(S.slots[k] && S.slots[k].loop);
+    b.querySelector('.nm').textContent = filled ? shortName(presetName(k)) : 'empty';
+    b.querySelector('.l').hidden = nsc < 2;
+    b.querySelector('.l').textContent = nsc + 'S';
     b.classList.toggle('empty', !filled);
-    b.classList.toggle('cur', k === S.slot);
+    b.classList.toggle('cur', k === S.preset);
     b.classList.toggle('armed', S.armed);
-    b.title = filled ? slotName(k) + (S.slots[k] ? ' (yours)' : ' (original)') : 'Empty slot';
+    b.title = filled ? presetName(k) + (p ? ' (yours, ' + Math.max(1, nsc) + ' scenes)' : ' (original)') : 'Empty preset';
   });
-  headerUi();
+  scenesUi(); headerUi();
 }
 function saveUi() {
   const s = document.getElementById('save');
   s.classList.toggle('on', S.armed);
-  s.textContent = S.armed ? 'Pick a slot' : 'Save';
-  slotsUi();
+  s.textContent = S.armed ? 'Pick a scene or preset' : 'Save';
+  presetsUi();
 }
 
 /* ---------- input ---------- */
@@ -1008,8 +1128,8 @@ function frame() {
     BANK_NAMES.push(s);
   }
   loadLocal();
-  S.patch.set(S.slots[S.slot] ? S.slots[S.slot].patch : (BANK[S.slot] || BANK[0]));
-  buildKnobs(); buildFx(); buildMeter(); octUi(); slotsUi(); recUi();
+  { const sc = sceneOf(S.preset, S.scene) || sceneOf(S.preset, 0) || { patch: BANK[0] }; S.patch.set(sc.patch); if (!S.fxGlobal && sc.fx) { const f = sc.fx; S.verb = f.verb.slice(); S.hicut = f.hicut; S.insert = f.insert; S.glue = f.glue.slice(); S.ratio = f.ratio; } }
+  buildKnobs(); buildFx(); buildMeter(); octUi(); presetsUi(); recUi();
   sctx.fillStyle = '#000'; sctx.fillRect(0, 0, SC, SC);
   requestAnimationFrame(frame);
   connectDb();
