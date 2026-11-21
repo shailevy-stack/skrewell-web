@@ -175,6 +175,10 @@ input[type=range]::-moz-range-thumb { width: 10px; height: 16px; background: var
 .ratio button { padding: 2px 9px; }
 .seg.small button { padding: 2px 8px; font-size: 11px; }
 .hint { color: var(--label); font-size: 11px; }
+.sethelp { margin: 0; display: grid; grid-template-columns: 11ch minmax(0, 46ch); gap: 8px 12px; font-size: 11px; line-height: 1.45; color: var(--label); }   /* the settings, a line each, a readable measure */
+.sethelp dt { color: var(--ink); letter-spacing: .06em; }
+.sethelp dd { margin: 0; }
+body:not(.debug) .debug { display: none; }   /* the audio readout and the capture: only with ?debug in the address */
 footer { border-top: 1px solid var(--rule); padding: 12px; color: var(--label); font-size: 11px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
 footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inherit; color: var(--ink); }
 #rec { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
@@ -284,9 +288,14 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <section class="card" id="info">
     <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
-    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each line its own length; Stretch, one cycle as long as the longest line; Fixed, one cycle as long as line 1. Rec loop smoothing: how softly a control glides over the seams, where a line comes round to its start, where a newer line takes a control over or gives it back, and where your hand lets go; the recorded moves themselves play as made. OFF: hard cuts.</p>
-    <p class="hint" id="audioinfo"></p>
-    <p class="hint"><button id="capture">Capture 5 s</button> <span id="capinfo">Records exactly what goes to the audio output, as a WAV file.</span></p>
+    <dl class="sethelp">
+      <dt>FX + GLUE</dt><dd>Per scene: each scene brings its own reverb and compressor. Global: they stay as you set them.</dd>
+      <dt>REC LOOP</dt><dd>Free: each line its own length. Stretch: one cycle, as long as the longest line. Fixed: one cycle, as long as line 1.</dd>
+      <dt>SMOOTHING</dt><dd>A glide over the seams only: where a line starts again, a line takes a control over or gives it back, a hand lets go. OFF: hard cuts.</dd>
+      <dt>MORPH</dt><dd>How long a scene or preset takes to arrive. OFF: at once.</dd>
+    </dl>
+    <p class="hint debug" id="audioinfo"></p>
+    <p class="hint debug"><button id="capture">Capture 5 s</button> <span id="capinfo">Records exactly what goes to the audio output, as a WAV file.</span></p>
 
     <div class="sep" aria-hidden="true"></div>
     <h2><span class="k">INFO</span>What it is</h2>
@@ -1398,6 +1407,7 @@ function audioInfo() {                          /* settings: what the audio outp
   el.textContent = 'Audio output: ' + (ctx.sampleRate / 1000).toFixed(1).replace(/\.0$/, '') + ' kHz · latency ' + ms(ctx.baseLatency) + ' + ' + ms(ctx.outputLatency) + ' · ' + ctx.state;
 }
 document.getElementById('capture').addEventListener('click', capStart);
+if (new URLSearchParams(location.search).has('debug')) document.body.classList.add('debug');
 document.getElementById('title').addEventListener('click', () => {
   audioInfo();
   const on = !document.body.classList.contains('info');
