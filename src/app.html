@@ -576,9 +576,15 @@ function lineSeek(k, pos) {
   for (const e of R.ev) if (e[3] === k && e[0] <= pos) R.lv[k][e[1]] = evVal(e);
   R.last[k] = pos;
 }
+function recRestart() {                            /* PLAY: every line from the top, line 1 at its start, the others in relation */
+  const t = now();
+  R.t0 = t; R.tPlay = t; R.out.fill(-1);
+  for (let k = 0; k < R.nl; k++) lineSeek(k, linePos(k, t));
+  for (let id = 0; id < P_N; id++) if (R.has[id]) R.sm[id] = clamp01(linesValue(id, R.nl));
+}
 function recPlay() {
   const nplay = R.nl + (sharedRec() ? 1 : 0);
-  if (!nplay) return;
+  if (!nplay || !S.running) return;               /* (stopped: the lines stand still) */
   const t = now();
   for (let k = 0; k < nplay; k++) {
     const pos = linePos(k === R.nl ? 0 : k, t), last = R.last[k];
@@ -635,7 +641,7 @@ function loopLoad(loop) {                          /* a scene's lines: line 1 fr
   R.nl = loop.lines.length;
   loop.lines.forEach(([L, o], k) => { R.len[k] = Math.max(100, L); R.off[k] = o; });
   for (const e of R.ev) R.has[e[1]] |= 1 << e[3];
-  R.t0 = now(); R.touch.fill(0); R.out.fill(-1);
+  R.t0 = R.stopT = now(); R.touch.fill(0); R.out.fill(-1);
   for (let k = 0; k < R.nl; k++) lineSeek(k, linePos(k, R.t0));
   for (let id = 0; id < P_N; id++) R.sm[id] = R.has[id] ? clamp01(linesValue(id, R.nl)) : 0;
 }
@@ -901,6 +907,8 @@ async function togglePlay() {
   if (ctx.state !== 'running') { try { await ctx.resume(); } catch (e) {} }
   S.running = !S.running;
   post({ c: 'run', on: S.running });
+  if (!S.running) { if (R.recording) recClose(); R.stopT = now(); recUi(); }   /* STOP: the lines stop where they are */
+  else if (R.nl) recRestart();                    /* PLAY: from the top */
   if (S.running) wakeOn(); else { wakeOff(); S.ps = null; dirty = true; }
   document.getElementById('play').classList.toggle('on', S.running);
   document.getElementById('play').textContent = S.running ? 'Stop' : 'Play';
@@ -1354,10 +1362,10 @@ function laneTraces(k, len) {
 function lanesDraw() {
   const dpr = Math.min(2, window.devicePixelRatio || 1), Wc = Math.round(lc.clientWidth * dpr), Hc = Math.round(54 * dpr);
   if (lc.width !== Wc || lc.height !== Hc) { lc.width = Wc; lc.height = Hc; laneVer = -1; }
-  const busy = R.nl > 0 || R.recording;
+  const busy = (R.nl > 0 && S.running) || R.recording;
   if (!busy && laneIdle && laneVer === R.ver) return;   /* (nothing moves: drawn once) */
   laneIdle = !busy;
-  const t = now(), LH = 5 * dpr, GAP = 2 * dpr, W = Wc;
+  const t = S.running || R.recording ? now() : (R.stopT || now()), LH = 5 * dpr, GAP = 2 * dpr, W = Wc;
   if (laneVer !== R.ver) { laneVer = R.ver; for (let k = 0; k < R.nl; k++) laneCache[k] = { len: R.len[k], traces: laneTraces(k, R.len[k]) }; }
   lctx.clearRect(0, 0, Wc, Hc);
   for (let k = 0; k < 8; k++) {
