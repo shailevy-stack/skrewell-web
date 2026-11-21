@@ -474,7 +474,7 @@ const S = {
   patch: new Uint8Array(PATCH_N), dv: null,
   verb: [0.6, 0.45, 0, 0.25], hicut: 1, insert: false,
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
-  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false, recGlide: 0,
+  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false, recGlide: Math.sqrt(0.05),   /* (REC LOOP SMOOTHING: 50 ms to start with) */
   last: {},                                     /* the scene last played in each preset: a preset comes back on it */
   presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
   migrated: new Set(), fresh: false,
