@@ -76,7 +76,8 @@ body.fullscope #scopetap { display: block; }
 .scene { padding: 6px 0; text-align: center; font-variant-numeric: tabular-nums; position: relative; }
 .scene.empty { border-style: dashed; color: var(--faint); }
 .scene.cur { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.scene.armed { border: 1px solid var(--ink); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }   /* SAVE armed: every cell bright, ready to take the scene */
+.scene.armed { border-color: var(--ink); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }   /* SAVE armed: every cell bright, ready to take the scene */
+.scene.armed.empty { color: var(--label); box-shadow: none; }   /* (an empty one stays dashed, brighter)*/
 .scene.cur.armed { color: var(--bg); }
 .scene.lp::after { content: ''; position: absolute; top: 3px; right: 3px; width: 4px; height: 4px; background: currentColor; }
 /* settings + info */
@@ -269,7 +270,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <section class="card" id="info">
     <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
-    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Loops: Free, each automation line loops at its own length; Shared, every line at the first one's length.</p>
+    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each automation line loops at its own length; Shared, every line at the first one's length.</p>
     <p class="hint" id="audioinfo"></p>
     <p class="hint"><button id="capture">Capture 5 s</button> <span id="capinfo">Records exactly what goes to the audio output, as a WAV file.</span></p>
 
@@ -281,7 +282,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h3>THE PANEL, TOP TO BOTTOM</h3>
     <div class="modes stack">
       <div><b>PLAY</b><span>Starts and stops the sound (Space). While it plays, the screen stays awake.</span></div>
-      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With LOOPS on Free (settings), every line keeps its own length, so they drift against each other; on Shared, every line takes the first one's length. Only the controls you touch are recorded. A control an earlier line already moves is recorded as an offset: the new line bends the old movement up and down instead of replacing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
+      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With REC LOOP on Free (settings), every line keeps its own length, so they drift against each other; on Shared, every line takes the first one's length. Only the controls you touch are recorded. A control an earlier line already moves is recorded as an offset: the new line bends the old movement up and down instead of replacing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
       <div><b>SCOPE</b><span>Each channel's left lever drawn against its right, eight figures over each other. Tap it (or F) and the controls fade away; tap again (or Esc) to bring them back.</span></div>
       <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S8) and the mode. Messages appear in the same row for a moment.</span></div>
       <div><b>SCENE</b><span>Eight scenes of the current preset. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
@@ -515,7 +516,7 @@ function say(what, words) {
 
 /* ---------- motion recorder: automation lines (the firmware's, in milliseconds) ----------
    Each REC session is a line: REC starts recording one (the lines already looping keep playing), REC again closes it
-   and it loops from that moment, at its own length (LOOPS FREE) or at line 1's (SHARED). Up to 8 lines; each keeps
+   and it loops from that moment, at its own length (REC LOOP FREE) or at line 1's (SHARED). Up to 8 lines; each keeps
    where it starts relative to line 1, so a scene brings them back in the same relation. A control's first move in a
    line also records where it was, at the line's start. A control an earlier line moves is recorded as an offset: the
    new line bends the older movement up and down. A hand on a control has it while it moves. Hold REC 2 s: all cleared. */
@@ -1070,10 +1071,10 @@ function buildFx() {
   fxRow.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { S.fxGlobal = +b.dataset.g === 1; fxSyncMode(); settingsDirty(); say('FX + GLUE', S.fxGlobal ? 'GLOBAL' : 'PER SCENE'); }));
   fxSync.push(fxSyncMode); fxSyncMode();
   const lpRow = document.createElement('div'); lpRow.className = 'fxrow'; lpRow.style.marginBottom = '14px';
-  lpRow.innerHTML = '<span class="lbl">LOOPS</span><span class="seg small" id="lpmode"><button data-g="0">Free</button><button data-g="1">Shared</button></span><span></span>';
+  lpRow.innerHTML = '<span class="lbl">REC LOOP</span><span class="seg small" id="lpmode"><button data-g="0">Free</button><button data-g="1">Shared</button></span><span></span>';
   st.append(lpRow);
   const lpSync = () => lpRow.querySelectorAll('button').forEach((b) => b.classList.toggle('on', (+b.dataset.g === 1) === S.loopsShared));
-  lpRow.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { S.loopsShared = +b.dataset.g === 1; lpSync(); settingsDirty(); say('LOOPS', S.loopsShared ? 'SHARED LENGTH' : 'FREE'); }));
+  lpRow.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { S.loopsShared = +b.dataset.g === 1; lpSync(); settingsDirty(); say('REC LOOP', S.loopsShared ? 'SHARED' : 'FREE'); }));
   fxSync.push(lpSync); lpSync();
   settingRow(st, 'MORPH', () => S.morph, (x) => { S.morph = x; }, () => { const ms = morphMs(); return ms < 16 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
   const v = document.getElementById('verb'); v.innerHTML = '';
