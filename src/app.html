@@ -296,7 +296,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h3>THE PANEL, TOP TO BOTTOM</h3>
     <div class="modes stack">
       <div><b>PLAY</b><span>Starts and stops the sound (Space). While it plays, the screen stays awake.</span></div>
-      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With REC LOOP on Free (settings), every line keeps its own length, so they drift against each other; on Shared, the lines share one cycle, as long as the longest: each plays from its top, holds its last values when it ends, and all start again together; a take recorded on Shared starts where the cycle is, and one that runs past the end stretches the cycle. Only the controls you touch are recorded. A control an earlier line already moves is recorded as an offset: the new line bends the old movement up and down instead of replacing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
+      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With REC LOOP on Free (settings), every line keeps its own length, so they drift against each other; on Shared, the lines share one cycle, as long as the longest: each plays from its top, holds its last values when it ends, and all start again together; a take recorded on Shared starts where the cycle is, and one that runs past the end stretches the cycle. Only the controls you touch are recorded. A control an earlier line already moves is taken over by the new line only over the stretch you recorded, from your first move of it until REC stops; outside that stretch the earlier line keeps playing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
       <div><b>SCOPE</b><span>Each channel's left lever drawn against its right, eight figures over each other. Tap it (or F) and the controls fade away; tap again (or Esc) to bring them back.</span></div>
       <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S8) and the mode. Messages appear in the same row for a moment.</span></div>
       <div><b>SCENE</b><span>Eight scenes of the current preset. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
@@ -538,15 +538,26 @@ function say(what, words) {
 const REC_MAX = 8000, NLINES = 8, REC_HOLD_MS = 2000;
 const R = { recording: false, nl: 0, ev: [], rs: 0, t0: 0, len: [], off: [], last: [], touch: new Float64Array(P_N),
             has: new Uint8Array(P_N), cyc: new Array(8).fill(false), recCyc: false, r0: 0, p0: 0, c0: 0, lv: [], out: new Float32Array(P_N).fill(-1), ver: 0, sm: new Float32Array(P_N), tPlay: 0 };
-for (let k = 0; k < NLINES; k++) { R.len.push(100); R.off.push(0); R.last.push(-1); R.lv.push(new Float32Array(P_N)); }
+R.first = [];
+for (let k = 0; k < NLINES; k++) { R.len.push(100); R.off.push(0); R.last.push(-1); R.lv.push(new Float32Array(P_N)); R.first.push(new Float64Array(P_N)); }
 const now = () => performance.now();
 const recState = () => R.recording ? 1 : R.nl ? 2 : 0;
-const lineDelta = (k, id) => (R.has[id] & ((1 << k) - 1)) !== 0;
-const evVal = (e) => { const x = e[2] / 65535; return lineDelta(e[3], e[1]) ? x * 2 - 1 : x; };
-function linesValue(id, below) {
-  let v = 0, got = false;
-  for (let k = 0; k < below; k++) if (R.has[id] >> k & 1) { v += R.lv[k][id]; got = true; }
-  return got ? v : pget(id);
+/* Who sets a control: the first line that recorded it owns it all the way round. A later line that recorded the same
+   control owns it only over the stretch it recorded, from its first move of it to its end; outside that stretch the
+   earlier line plays on. The newest line wins where stretches overlap. While a line is being recorded, every control
+   touched in it is its own (it holds where the hand left it) until REC stops. */
+const lineOver = (k, id) => (R.has[id] & ((1 << k) - 1)) !== 0;   /* an earlier line has it: k only over its stretch */
+const evVal = (e) => e[2] / 65535;
+function lineActive(k, id, t) {
+  if (R.recording && k === R.nl) return true;
+  if (!lineOver(k, id)) return true;
+  const p = linePos(k, t);
+  return p >= R.first[k][id] && p <= R.len[k];
+}
+function linesValue(id, below, t) {
+  t = t || now();
+  for (let k = Math.min(below, NLINES) - 1; k >= 0; k--) if (R.has[id] >> k & 1 && lineActive(k, id, t)) return R.lv[k][id];
+  return pget(id);
 }
 /* SHARED lines live on one cycle, as long as the longest of them: each plays from the cycle's top, holds its last
    values when it ends, and all start again together. A take recorded in SHARED starts where the cycle is; one that
@@ -565,7 +576,6 @@ function recInsert(t, k, id, x) {
   if (R.ev.length >= REC_MAX) return;
   let i = R.ev.length;
   while (i > 0 && (R.ev[i - 1][3] > k || (R.ev[i - 1][3] === k && R.ev[i - 1][0] > t))) i--;
-  if (lineDelta(k, id)) x = (x + 1) / 2;
   R.ev.splice(i, 0, [t, id, Math.round(clamp01(x) * 65535), k]);
 }
 function recNote(id, was, v) {
@@ -573,16 +583,20 @@ function recNote(id, was, v) {
   if (R.nl || R.recording) R.touch[id] = t + 250;
   if (!R.recording) return;
   const at = R.recCyc ? R.p0 + (t - R.rs) : t - R.rs;
-  if (!(R.has[id] >> k & 1)) {                    /* its first move in this line: where it was, at the line's start */
-    const d = lineDelta(k, id);
-    recInsert(0, k, id, d ? 0 : was); R.has[id] |= 1 << k; R.lv[k][id] = d ? 0 : was;
-    if (!(R.has[id] & ((1 << k) - 1))) R.sm[id] = was;
+  if (!(R.has[id] >> k & 1)) {                    /* its first move in this line */
+    if (!lineOver(k, id)) { recInsert(0, k, id, was); R.first[k][id] = 0; R.sm[id] = was; }   /* new to the lines: where it was, from the line's start */
+    else R.first[k][id] = at;                     /* an earlier line's: this line takes it from here */
+    R.has[id] |= 1 << k;
   }
   R.ver++;
-  const x = lineDelta(k, id) ? v - linesValue(id, k) : v;
-  recInsert(at, k, id, x); R.lv[k][id] = x;
+  recInsert(at, k, id, v); R.lv[k][id] = v;
 }
 const recGlideMs = () => S.recGlide * S.recGlide * 1000;   /* REC LOOP SMOOTHING: 0 .. 1 s, fine at the short end */
+function lineFirsts(k) {                           /* (where line k takes each of its controls: its first move of it) */
+  R.first[k].fill(0);
+  const seen = new Uint8Array(P_N);
+  for (const e of R.ev) if (e[3] === k && !seen[e[1]]) { seen[e[1]] = 1; R.first[k][e[1]] = e[0]; }
+}
 function lineSeek(k, pos) {
   for (const e of R.ev) if (e[3] === k && e[0] <= pos) R.lv[k][e[1]] = evVal(e);
   R.last[k] = pos;
@@ -594,7 +608,7 @@ function recRestart() {                            /* PLAY: every line from the 
   for (let id = 0; id < P_N; id++) if (R.has[id]) R.sm[id] = clamp01(linesValue(id, R.nl));
 }
 function recPlay() {
-  const nplay = R.nl;
+  const nplay = R.nl;   /* (the line being recorded counts too: linesValue looks one past while recording) */
   if (!nplay || !S.running) return;               /* (stopped: the lines stand still) */
   const t = now();
   for (let k = 0; k < nplay; k++) {
@@ -614,7 +628,7 @@ function recPlay() {
   for (let id = 0; id < P_N; id++) {
     if (!R.has[id]) continue;
     if (R.touch[id] > t) { R.sm[id] = pget(id); continue; }   /* (a hand has it: the glide starts from there) */
-    const target = clamp01(linesValue(id, nplay));
+    const target = clamp01(linesValue(id, nplay + (R.recording ? 1 : 0), t));
     R.sm[id] += (target - R.sm[id]) * k;
     const v = R.sm[id];
     if (Math.abs(v - R.out[id]) > 1e-5) { papply(id, v); R.out[id] = v; }
@@ -656,6 +670,7 @@ function loopLoad(loop) {                          /* a scene's lines: line 1 fr
   R.nl = loop.lines.length;
   loop.lines.forEach(([L, o, c], k) => { R.len[k] = Math.max(100, L); R.off[k] = o; R.cyc[k] = !!c; });
   for (const e of R.ev) R.has[e[1]] |= 1 << e[3];
+  for (let k = 0; k < R.nl; k++) lineFirsts(k);
   R.t0 = R.c0 = R.stopT = now(); R.touch.fill(0); R.out.fill(-1);
   for (let k = 0; k < R.nl; k++) lineSeek(k, linePos(k, R.t0));
   for (let id = 0; id < P_N; id++) R.sm[id] = R.has[id] ? clamp01(linesValue(id, R.nl)) : 0;
