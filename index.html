@@ -54,9 +54,12 @@ button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); 
 .app > * { min-width: 0; }
 .window { height: min(var(--ss), 60vh); margin-top: -12px; }   /* the scope, clear, before the controls */
 .veil { background: var(--veil); }
-header { position: sticky; top: 0; z-index: 3; background: var(--bg); display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-height: 44px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
-header > * { flex-shrink: 0; }
-header .pname, header .msg { flex-shrink: 1; }
+header { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.hrow { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-height: 28px; }
+.hrow > * { flex-shrink: 0; }
+.hrow .pname, .hrow .msg { flex-shrink: 1; }
+#play, #rec { width: 4.6em; padding-left: 0; padding-right: 0; text-align: center; }   /* the same size in every state */
+#lanes { display: block; width: 100%; height: 54px; margin-top: 8px; }
 .word { font-weight: 600; font-size: 15px; letter-spacing: .28em; border: 0; padding: 4px 0; text-transform: none; }
 .word:hover { border: 0; }
 body.info .word { text-decoration: underline; text-underline-offset: 5px; }
@@ -186,10 +189,11 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   .ctl { grid-template-columns: 48px minmax(0, 1fr) 48px; gap: 10px 6px; }
   .ctl > button { font-size: 11px; }
   .modes3 button { font-size: 10px; letter-spacing: .02em; }
-  header { gap: 8px; }
-  header button { padding: 6px 8px; }
+  .hrow { gap: 8px; }
+  .hrow button { padding: 6px 8px; }
+  #play, #rec { padding-left: 0; padding-right: 0; }
   .msg b { margin-right: 4px; }
-  header.saying .pname, header.saying #modetag { display: none; }
+  .hrow.saying .pname, .hrow.saying #modetag { display: none; }
   .msg { text-align: left; }
   .knob svg { width: 40px; height: 40px; }
   .knob .lbl { font-size: 9px; letter-spacing: .02em; }
@@ -205,6 +209,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
 
 <div class="app">
   <header>
+   <div class="hrow">
     <button class="word" id="title" title="Settings and info" aria-pressed="false">SKREWELL</button>
     <span class="slotbox" id="slotno">01</span>
     <span class="pname" id="pname">Miro vs. Mondrian</span>
@@ -213,6 +218,8 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <span class="msg" id="msg" aria-live="polite"></span>
     <button id="play" title="Start / stop (Space)">Play</button>
     <button id="rec" title="Record an automation line; again: it loops (R). Hold 2 s: clear all">Rec</button>
+   </div>
+   <canvas id="lanes" width="800" height="54" aria-label="The automation lines: one lane each, its movement and where it is"></canvas>
   </header>
 
   <div class="window main-card" id="window" title="Tap the scope: full screen"></div>
@@ -275,7 +282,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <section class="card" id="info">
     <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
-    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each automation line loops at its own length; Shared, every line at the first one's length.</p>
+    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each automation line loops at its own length; Shared, every line at the first one's length. Rec glide: how softly the lines move a control from one recorded value to the next, and from a loop's end back to its start; OFF keeps the steps as recorded.</p>
     <p class="hint" id="audioinfo"></p>
     <p class="hint"><button id="capture">Capture 5 s</button> <span id="capinfo">Records exactly what goes to the audio output, as a WAV file.</span></p>
 
@@ -464,7 +471,7 @@ const S = {
   patch: new Uint8Array(PATCH_N), dv: null,
   verb: [0.6, 0.45, 0, 0.25], hicut: 1, insert: false,
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
-  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false,
+  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false, recGlide: 0,
   last: {},                                     /* the scene last played in each preset: a preset comes back on it */
   presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
   migrated: new Set(), fresh: false,
@@ -527,7 +534,7 @@ function say(what, words) {
    new line bends the older movement up and down. A hand on a control has it while it moves. Hold REC 2 s: all cleared. */
 const REC_MAX = 8000, NLINES = 8, REC_HOLD_MS = 2000;
 const R = { recording: false, nl: 0, ev: [], rs: 0, t0: 0, len: [], off: [], last: [], touch: new Float64Array(P_N),
-            has: new Uint8Array(P_N), lv: [], out: new Float32Array(P_N).fill(-1) };
+            has: new Uint8Array(P_N), lv: [], out: new Float32Array(P_N).fill(-1), ver: 0, sm: new Float32Array(P_N), tPlay: 0 };
 for (let k = 0; k < NLINES; k++) { R.len.push(100); R.off.push(0); R.last.push(-1); R.lv.push(new Float32Array(P_N)); }
 const now = () => performance.now();
 const recState = () => R.recording ? 1 : R.nl ? 2 : 0;
@@ -555,10 +562,13 @@ function recNote(id, was, v) {
   if (!(R.has[id] >> k & 1)) {                    /* its first move in this line: where it was, at the line's start */
     const d = lineDelta(k, id);
     recInsert(0, k, id, d ? 0 : was); R.has[id] |= 1 << k; R.lv[k][id] = d ? 0 : was;
+    if (!(R.has[id] & ((1 << k) - 1))) R.sm[id] = was;
   }
+  R.ver++;
   const x = lineDelta(k, id) ? v - linesValue(id, k) : v;
   recInsert(at, k, id, x); R.lv[k][id] = x;
 }
+const recGlideMs = () => S.recGlide * S.recGlide * 2000;   /* 0 .. 2 s, fine at the short end */
 function lineSeek(k, pos) {
   for (const e of R.ev) if (e[3] === k && e[0] <= pos) R.lv[k][e[1]] = evVal(e);
   R.last[k] = pos;
@@ -579,12 +589,19 @@ function recPlay() {
     }
     R.last[k] = pos;
   }
-  for (let id = 0; id < P_N; id++) if (R.has[id] && R.touch[id] <= t) {
-    const v = clamp01(linesValue(id, nplay));
+  const dt = Math.min(100, t - (R.tPlay || t)), tau = recGlideMs();
+  const k = tau > 1 ? 1 - Math.exp(-dt / tau) : 1;   /* REC GLIDE: steps (and the loop's wrap) become glides */
+  R.tPlay = t;
+  for (let id = 0; id < P_N; id++) {
+    if (!R.has[id]) continue;
+    if (R.touch[id] > t) { R.sm[id] = pget(id); continue; }   /* (a hand has it: the glide starts from there) */
+    const target = clamp01(linesValue(id, nplay));
+    R.sm[id] += (target - R.sm[id]) * k;
+    const v = R.sm[id];
     if (Math.abs(v - R.out[id]) > 1e-5) { papply(id, v); R.out[id] = v; }
   }
 }
-function recClear() { R.recording = false; R.nl = 0; R.ev = []; R.has.fill(0); }
+function recClear() { R.recording = false; R.nl = 0; R.ev = []; R.has.fill(0); R.ver++; }
 function recClose() {
   const t = now(), k = R.nl;
   R.recording = false;
@@ -595,6 +612,7 @@ function recClose() {
   } else { R.len[k] = R.len[0]; R.off[k] = 0; }
   R.nl++;
   lineSeek(k, linePos(k, t));
+  for (let id = 0; id < P_N; id++) if (R.has[id] >> k & 1) R.sm[id] = pget(id);
   return true;
 }
 function recPress() {
@@ -616,11 +634,13 @@ function loopLoad(loop) {                          /* a scene's lines: line 1 fr
   for (const e of R.ev) R.has[e[1]] |= 1 << e[3];
   R.t0 = now(); R.touch.fill(0); R.out.fill(-1);
   for (let k = 0; k < R.nl; k++) lineSeek(k, linePos(k, R.t0));
+  for (let id = 0; id < P_N; id++) R.sm[id] = R.has[id] ? clamp01(linesValue(id, R.nl)) : 0;
 }
 function recUi() {
   const b = document.getElementById('rec');
-  b.firstChild.nodeValue = R.recording ? 'Rec ' + (R.nl + 1) : R.nl ? 'Loop ' + R.nl : 'Rec';   /* (the text; the hold bar stays) */
-  b.classList.toggle('on', R.recording || R.nl > 0);
+  b.firstChild.nodeValue = R.recording ? 'Rec ' + (R.nl + 1) : 'Rec';   /* (the text; the hold bar stays) */
+  b.classList.toggle('on', R.recording);
+  R.ver++;
   b.classList.toggle('blink', R.recording);
 }
 
@@ -730,7 +750,7 @@ const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 function presetDoc(k) { const p = S.presets[k]; return p ? { name: p.name, base: b64(p.base) } : null; }
 function sceneDoc(sc) { return sc ? { patch: b64(sc.patch), fx: sc.fx, loop: sc.loop } : null; }
 const STORE_V = 4;                              /* 4: a fresh start for presets + scenes (older saves are dropped) */
-function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, loopsShared: S.loopsShared, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, last: S.last, oct: S.oct, vol: S.vol }; }
+function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, loopsShared: S.loopsShared, recGlide: S.recGlide, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, last: S.last, oct: S.oct, vol: S.vol }; }
 function lsSet(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 async function dbSet(id, d) { if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc(id); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} } }
@@ -787,6 +807,7 @@ function applySettingsDoc(d) {
   if (typeof d.insert === 'boolean') S.insert = d.insert;
   if (typeof d.fxGlobal === 'boolean') S.fxGlobal = d.fxGlobal;
   if (typeof d.loopsShared === 'boolean') S.loopsShared = d.loopsShared;
+  if (d.recGlide >= 0 && d.recGlide <= 1) S.recGlide = +d.recGlide;
   if (Array.isArray(d.glue) && d.glue.length === 4) S.glue = d.glue.map((x) => clamp01(+x || 0));
   if (d.ratio >= 2 && d.ratio <= 10) S.ratio = Math.round(d.ratio * 2) / 2;
   const pk = d.preset !== undefined ? d.preset : d.slot;
@@ -1081,6 +1102,8 @@ function buildFx() {
   const lpSync = () => lpRow.querySelectorAll('button').forEach((b) => b.classList.toggle('on', (+b.dataset.g === 1) === S.loopsShared));
   lpRow.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { S.loopsShared = +b.dataset.g === 1; lpSync(); settingsDirty(); say('REC LOOP', S.loopsShared ? 'SHARED' : 'FREE'); }));
   fxSync.push(lpSync); lpSync();
+  settingRow(st, 'REC GLIDE', () => S.recGlide, (x) => { S.recGlide = x; }, () => { const ms = recGlideMs(); return ms < 2 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
+  st.lastChild.style.marginBottom = '14px';
   settingRow(st, 'MORPH', () => S.morph, (x) => { S.morph = x; }, () => { const ms = morphMs(); return ms < 16 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
   const v = document.getElementById('verb'); v.innerHTML = '';
   sliderRow(v, 'SIZE', P_VERB0, (x) => Math.round(x * 100));
@@ -1312,12 +1335,56 @@ addEventListener('resize', placeScope);
 if (window.ResizeObserver) new ResizeObserver(placeScope).observe(document.querySelector('header'));
 placeScope();
 
+/* ---------- the automation lines, one lane each under the title row ----------
+   A lane shows its line's movement over its whole length (each recorded control a trace; an offset centred), and
+   where it is now: a bright head moving at the line's own speed, so the polyrhythm is there to see. Empty lanes: a
+   faint rule. The line being recorded grows in its lane and blinks. */
+const LANE_COL = ['#ff6b5b', '#f2b33d', '#b5d96a', '#4fd1a5', '#47c1e6', '#6f8cff', '#b07cff', '#ff6fb5'];
+const lc = document.getElementById('lanes'), lctx = lc.getContext('2d');
+let laneVer = -1, laneIdle = false;
+const laneCache = [];                              /* per line: { len, traces: [[t, y], ...] per control } */
+function laneTraces(k, len) {
+  const by = new Map();
+  for (const e of R.ev) if (e[3] === k) { if (!by.has(e[1])) by.set(e[1], []); by.get(e[1]).push([Math.min(e[0], len), e[2] / 65535]); }
+  return [...by.values()];
+}
+function lanesDraw() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1), Wc = Math.round(lc.clientWidth * dpr), Hc = Math.round(54 * dpr);
+  if (lc.width !== Wc || lc.height !== Hc) { lc.width = Wc; lc.height = Hc; laneVer = -1; }
+  const busy = R.nl > 0 || R.recording;
+  if (!busy && laneIdle && laneVer === R.ver) return;   /* (nothing moves: drawn once) */
+  laneIdle = !busy;
+  const t = now(), LH = 5 * dpr, GAP = 2 * dpr, W = Wc;
+  if (laneVer !== R.ver) { laneVer = R.ver; for (let k = 0; k < R.nl; k++) laneCache[k] = { len: R.len[k], traces: laneTraces(k, R.len[k]) }; }
+  lctx.clearRect(0, 0, Wc, Hc);
+  for (let k = 0; k < 8; k++) {
+    const y0 = k * (LH + GAP), col = LANE_COL[k];
+    const rec = R.recording && k === R.nl, live = k < R.nl;
+    if (!live && !rec) { lctx.fillStyle = '#2a2a2a'; lctx.fillRect(0, y0 + LH / 2 - dpr / 2, W, dpr); continue; }
+    let len, traces, pos;
+    if (live) { ({ len, traces } = laneCache[k]); pos = linePos(k, t); }
+    else {                                         /* recording: what has been recorded so far */
+      len = sharedRec() ? R.len[0] : Math.max(100, t - R.rs);
+      traces = laneTraces(k, len); pos = sharedRec() ? linePos(0, t) : len;
+    }
+    lctx.globalAlpha = 0.18; lctx.fillStyle = col; lctx.fillRect(0, y0, W, LH);
+    lctx.globalAlpha = rec && (t / 250 | 0) % 2 ? 0.45 : 0.85; lctx.strokeStyle = col; lctx.lineWidth = dpr;
+    for (const tr of traces) {                     /* step-held: the value stays until the next move */
+      lctx.beginPath();
+      tr.forEach(([tt, v], i) => { const x = tt / len * W, y = y0 + LH - v * LH; if (i) lctx.lineTo(x, lctx._y); lctx.lineTo(x, y); lctx._y = y; if (!i) lctx.moveTo(x, y); });
+      lctx.lineTo(rec ? pos / len * W : W, lctx._y); lctx.stroke();
+    }
+    lctx.globalAlpha = 1; lctx.fillStyle = rec ? col : '#fff';
+    lctx.fillRect(Math.min(W - 2 * dpr, pos / len * W), y0 - dpr, 2 * dpr, LH + 2 * dpr);   /* where it is */
+  }
+}
+
 /* ---------- the frame ---------- */
 function frame() {
   recPlay();
   if (S.running) scopeDraw();
   if (dirty) { barsDraw(); fnsUi(); headerUi(); fxUi(); dirty = false; }
-  knobsUi(); meterUi();
+  knobsUi(); meterUi(); lanesDraw();
   requestAnimationFrame(frame);
 }
 
