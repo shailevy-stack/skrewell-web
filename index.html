@@ -284,7 +284,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <section class="card" id="info">
     <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
-    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each automation line loops at its own length; Shared, every line at the first one's length. Rec loop smoothing: how softly the lines move a control from one recorded value to the next, and from a loop's end back to its start; OFF keeps the steps as recorded. Scope sync: the scope already waits for the sound to be heard; if it still looks ahead (Bluetooth headphones add their own delay), move it right until picture and sound land together.</p>
+    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each automation line loops at its own length; Shared, all lines on one cycle as long as the longest, which a longer take stretches. Rec loop smoothing: how softly the lines move a control from one recorded value to the next, and from a loop's end back to its start; OFF keeps the steps as recorded.</p>
     <p class="hint" id="audioinfo"></p>
     <p class="hint"><button id="capture">Capture 5 s</button> <span id="capinfo">Records exactly what goes to the audio output, as a WAV file.</span></p>
 
@@ -296,7 +296,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h3>THE PANEL, TOP TO BOTTOM</h3>
     <div class="modes stack">
       <div><b>PLAY</b><span>Starts and stops the sound (Space). While it plays, the screen stays awake.</span></div>
-      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With REC LOOP on Free (settings), every line keeps its own length, so they drift against each other; on Shared, every line takes the first one's length. Only the controls you touch are recorded. A control an earlier line already moves is recorded as an offset: the new line bends the old movement up and down instead of replacing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
+      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With REC LOOP on Free (settings), every line keeps its own length, so they drift against each other; on Shared, the lines share one cycle, as long as the longest: each plays from its top, holds its last values when it ends, and all start again together; a take recorded on Shared starts where the cycle is, and one that runs past the end stretches the cycle. Only the controls you touch are recorded. A control an earlier line already moves is recorded as an offset: the new line bends the old movement up and down instead of replacing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
       <div><b>SCOPE</b><span>Each channel's left lever drawn against its right, eight figures over each other. Tap it (or F) and the controls fade away; tap again (or Esc) to bring them back.</span></div>
       <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S8) and the mode. Messages appear in the same row for a moment.</span></div>
       <div><b>SCENE</b><span>Eight scenes of the current preset. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
@@ -474,7 +474,7 @@ const S = {
   patch: new Uint8Array(PATCH_N), dv: null,
   verb: [0.6, 0.45, 0, 0.25], hicut: 1, insert: false,
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
-  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false, recGlide: 0, scopeTrim: 0.25,
+  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false, recGlide: 0,
   last: {},                                     /* the scene last played in each preset: a preset comes back on it */
   presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
   migrated: new Set(), fresh: false,
@@ -531,13 +531,13 @@ function say(what, words) {
 
 /* ---------- motion recorder: automation lines (the firmware's, in milliseconds) ----------
    Each REC session is a line: REC starts recording one (the lines already looping keep playing), REC again closes it
-   and it loops from that moment, at its own length (REC LOOP FREE) or at line 1's (SHARED). Up to 8 lines; each keeps
+   and it loops from that moment, at its own length (REC LOOP FREE) or on one shared cycle (SHARED). Up to 8 lines; each keeps
    where it starts relative to line 1, so a scene brings them back in the same relation. A control's first move in a
    line also records where it was, at the line's start. A control an earlier line moves is recorded as an offset: the
    new line bends the older movement up and down. A hand on a control has it while it moves. Hold REC 2 s: all cleared. */
 const REC_MAX = 8000, NLINES = 8, REC_HOLD_MS = 2000;
 const R = { recording: false, nl: 0, ev: [], rs: 0, t0: 0, len: [], off: [], last: [], touch: new Float64Array(P_N),
-            has: new Uint8Array(P_N), lv: [], out: new Float32Array(P_N).fill(-1), ver: 0, sm: new Float32Array(P_N), tPlay: 0 };
+            has: new Uint8Array(P_N), cyc: new Array(8).fill(false), recCyc: false, r0: 0, p0: 0, c0: 0, lv: [], out: new Float32Array(P_N).fill(-1), ver: 0, sm: new Float32Array(P_N), tPlay: 0 };
 for (let k = 0; k < NLINES; k++) { R.len.push(100); R.off.push(0); R.last.push(-1); R.lv.push(new Float32Array(P_N)); }
 const now = () => performance.now();
 const recState = () => R.recording ? 1 : R.nl ? 2 : 0;
@@ -548,21 +548,31 @@ function linesValue(id, below) {
   for (let k = 0; k < below; k++) if (R.has[id] >> k & 1) { v += R.lv[k][id]; got = true; }
   return got ? v : pget(id);
 }
-function linePos(k, t) { const L = R.len[k] || 100, d = t - R.t0; return ((d % L) + L - (R.off[k] % L)) % L; }
-const sharedRec = () => R.recording && S.loopsShared && R.nl > 0;
-const recPass = (t) => sharedRec() ? Math.floor((t - R.t0) / (R.len[0] || 100)) : 0;   /* (shared: which time round line 1) */
+/* SHARED lines live on one cycle, as long as the longest of them: each plays from the cycle's top, holds its last
+   values when it ends, and all start again together. A take recorded in SHARED starts where the cycle is; one that
+   runs past the end stretches the cycle (the others hold meanwhile). FREE lines loop at their own lengths. */
+function cycLen() { let C = 0; for (let k = 0; k < R.nl; k++) if (R.cyc[k] && R.len[k] > C) C = R.len[k]; return C || 100; }
+function cycPos(t) {
+  const C = cycLen(), d = t - R.c0;
+  if (R.recording && R.recCyc && R.nl) return d - R.r0 * C;   /* recording: the cycle doesn't come round, it stretches */
+  return ((d % C) + C) % C;
+}
+function linePos(k, t) {
+  if (R.cyc[k]) return cycPos(t);
+  const L = R.len[k] || 100, d = t - R.t0; return ((d % L) + L - (R.off[k] % L)) % L;
+}
 function recInsert(t, k, id, x) {
   if (R.ev.length >= REC_MAX) return;
   let i = R.ev.length;
   while (i > 0 && (R.ev[i - 1][3] > k || (R.ev[i - 1][3] === k && R.ev[i - 1][0] > t))) i--;
   if (lineDelta(k, id)) x = (x + 1) / 2;
-  R.ev.splice(i, 0, [t, id, Math.round(clamp01(x) * 65535), k, recPass(now())]);
+  R.ev.splice(i, 0, [t, id, Math.round(clamp01(x) * 65535), k]);
 }
 function recNote(id, was, v) {
   const t = now(), k = R.nl;
   if (R.nl || R.recording) R.touch[id] = t + 250;
   if (!R.recording) return;
-  const at = sharedRec() ? linePos(0, t) : t - R.rs;
+  const at = R.recCyc ? R.p0 + (t - R.rs) : t - R.rs;
   if (!(R.has[id] >> k & 1)) {                    /* its first move in this line: where it was, at the line's start */
     const d = lineDelta(k, id);
     recInsert(0, k, id, d ? 0 : was); R.has[id] |= 1 << k; R.lv[k][id] = d ? 0 : was;
@@ -579,12 +589,12 @@ function lineSeek(k, pos) {
 }
 function recRestart() {                            /* PLAY: every line from the top, line 1 at its start, the others in relation */
   const t = now();
-  R.t0 = t; R.tPlay = t; R.out.fill(-1);
+  R.t0 = R.c0 = t; R.tPlay = t; R.out.fill(-1);
   for (let k = 0; k < R.nl; k++) lineSeek(k, linePos(k, t));
   for (let id = 0; id < P_N; id++) if (R.has[id]) R.sm[id] = clamp01(linesValue(id, R.nl));
 }
 function recPlay() {
-  const nplay = R.nl + (sharedRec() ? 1 : 0);
+  const nplay = R.nl;
   if (!nplay || !S.running) return;               /* (stopped: the lines stand still) */
   const t = now();
   for (let k = 0; k < nplay; k++) {
@@ -593,7 +603,6 @@ function recPlay() {
       const e = R.ev[i];
       if (e[3] !== k) { i++; continue; }
       const inw = pos >= last ? (e[0] > last && e[0] <= pos) : (e[0] > last || e[0] <= pos);
-      if (inw && k === R.nl && R.touch[e[1]] > t && (e[4] | 0) < recPass(t)) { R.ev.splice(i, 1); continue; }   /* recording over itself: a move from an earlier time round goes */
       if (inw) R.lv[k][e[1]] = evVal(e);
       i++;
     }
@@ -616,10 +625,13 @@ function recClose() {
   const t = now(), k = R.nl;
   R.recording = false;
   if (!R.ev.some((e) => e[3] === k)) return false;
-  if (k === 0 || !S.loopsShared) {
-    R.len[k] = Math.min(0x1FFFFF, Math.max(100, t - R.rs));
-    if (k === 0) { R.t0 = t; R.off[k] = 0; } else R.off[k] = (t - R.t0) % R.len[k];
-  } else { R.len[k] = R.len[0]; R.off[k] = 0; }
+  R.cyc[k] = R.recCyc;
+  if (k === 0) { R.len[k] = Math.min(0x1FFFFF, Math.max(100, t - R.rs)); R.t0 = R.c0 = t; R.off[k] = 0; }
+  else if (R.recCyc) {                            /* on the cycle: as long as it reaches; past the end, the cycle grows */
+    const C = cycLen();
+    R.len[k] = Math.min(0x1FFFFF, Math.max(100, R.p0 + (t - R.rs)));
+    R.c0 += R.r0 * C; R.off[k] = 0;
+  } else { R.len[k] = Math.min(0x1FFFFF, Math.max(100, t - R.rs)); R.off[k] = (t - R.t0) % R.len[k]; }
   R.nl++;
   lineSeek(k, linePos(k, t));
   for (let id = 0; id < P_N; id++) if (R.has[id] >> k & 1) R.sm[id] = pget(id);
@@ -628,21 +640,23 @@ function recClose() {
 function recPress() {
   if (R.recording) { const ok = recClose(); say(ok ? 'LOOP' : 'NOTHING', ok ? 'LINE ' + R.nl : 'RECORDED'); recUi(); return; }
   if (R.nl >= NLINES) { say('LOOP', '8 LINES: THE MOST'); return; }
-  R.recording = true; R.rs = now();
-  R.last[R.nl] = sharedRec() ? linePos(0, R.rs) : -1;
+  R.recording = true; R.rs = now(); R.recCyc = S.loopsShared;
+  R.r0 = 0; R.p0 = 0;
+  if (R.recCyc && R.nl) { const C = cycLen(), d = R.rs - R.c0; R.r0 = Math.floor(d / C); R.p0 = d - R.r0 * C; }   /* it starts where the cycle is */
+  R.last[R.nl] = -1;
   say('REC', 'LINE ' + (R.nl + 1));
   recUi();
 }
 function loopNow() {                               /* the lines as a scene keeps them */
-  return R.nl && R.ev.length ? { lines: R.len.slice(0, R.nl).map((L, k) => [L, R.off[k]]), ev: R.ev.filter((e) => e[3] < R.nl).map((e) => e.slice(0, 4)) } : null;
+  return R.nl && R.ev.length ? { lines: R.len.slice(0, R.nl).map((L, k) => [L, R.off[k], R.cyc[k] ? 1 : 0]), ev: R.ev.filter((e) => e[3] < R.nl).map((e) => e.slice(0, 4)) } : null;
 }
 function loopLoad(loop) {                          /* a scene's lines: line 1 from its start, the others where they were */
   recClear();
   R.ev = loop.ev.map((e) => e.slice());
   R.nl = loop.lines.length;
-  loop.lines.forEach(([L, o], k) => { R.len[k] = Math.max(100, L); R.off[k] = o; });
+  loop.lines.forEach(([L, o, c], k) => { R.len[k] = Math.max(100, L); R.off[k] = o; R.cyc[k] = !!c; });
   for (const e of R.ev) R.has[e[1]] |= 1 << e[3];
-  R.t0 = R.stopT = now(); R.touch.fill(0); R.out.fill(-1);
+  R.t0 = R.c0 = R.stopT = now(); R.touch.fill(0); R.out.fill(-1);
   for (let k = 0; k < R.nl; k++) lineSeek(k, linePos(k, R.t0));
   for (let id = 0; id < P_N; id++) R.sm[id] = R.has[id] ? clamp01(linesValue(id, R.nl)) : 0;
 }
@@ -761,7 +775,7 @@ const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 function presetDoc(k) { const p = S.presets[k]; return p ? { name: p.name, base: b64(p.base) } : null; }
 function sceneDoc(sc) { return sc ? { patch: b64(sc.patch), fx: sc.fx, loop: sc.loop } : null; }
 const STORE_V = 4;                              /* 4: a fresh start for presets + scenes (older saves are dropped) */
-function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, loopsShared: S.loopsShared, recGlide: S.recGlide, scopeTrim: S.scopeTrim, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, last: S.last, oct: S.oct, vol: S.vol }; }
+function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, loopsShared: S.loopsShared, recGlide: S.recGlide, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, last: S.last, oct: S.oct, vol: S.vol }; }
 function lsSet(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 async function dbSet(id, d) { if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc(id); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} } }
@@ -782,7 +796,7 @@ function settingsDirty() {
 function okPatch(s) { try { const p = unb64(s); return p.length === PATCH_N ? p : null; } catch (e) { return null; } }
 function okLoop(l) {                             /* lines (or a loop from before lines: one line) */
   if (!l || !Array.isArray(l.ev)) return null;
-  const lines = Array.isArray(l.lines) ? l.lines.filter((x) => Array.isArray(x) && x[0] > 0).slice(0, NLINES).map((x) => [+x[0], +x[1] || 0]) : l.len > 0 ? [[+l.len, 0]] : [];
+  const lines = Array.isArray(l.lines) ? l.lines.filter((x) => Array.isArray(x) && x[0] > 0).slice(0, NLINES).map((x) => [+x[0], +x[1] || 0, x[2] ? 1 : 0]) : l.len > 0 ? [[+l.len, 0]] : [];
   if (!lines.length) return null;
   const ev = l.ev.filter((e) => Array.isArray(e) && e.length >= 3 && e[1] >= 0 && e[1] < P_N).map((e) => [+e[0], e[1] | 0, e[2] | 0, (e[3] | 0)]).filter((e) => e[3] < lines.length).slice(0, REC_MAX);
   return ev.length ? { lines, ev } : null;
@@ -819,7 +833,6 @@ function applySettingsDoc(d) {
   if (typeof d.fxGlobal === 'boolean') S.fxGlobal = d.fxGlobal;
   if (typeof d.loopsShared === 'boolean') S.loopsShared = d.loopsShared;
   if (d.recGlide >= 0 && d.recGlide <= 1) S.recGlide = +d.recGlide;
-  if (d.scopeTrim >= 0 && d.scopeTrim <= 1) S.scopeTrim = +d.scopeTrim;
   if (Array.isArray(d.glue) && d.glue.length === 4) S.glue = d.glue.map((x) => clamp01(+x || 0));
   if (d.ratio >= 2 && d.ratio <= 10) S.ratio = Math.round(d.ratio * 2) / 2;
   const pk = d.preset !== undefined ? d.preset : d.slot;
@@ -926,7 +939,8 @@ const lum = new Float32Array(SC * SC), img = sctx.createImageData(SC, SC);
    drawn once the output says that frame is playing (the output's latency later than it was made). */
 let pending = [];
 function scopeFeed(pts, f) { pending.push({ pts, f }); if (pending.length > 96) pending.shift(); }
-const scopeTrimMs = () => Math.round(S.scopeTrim * 400 - 100);   /* SCOPE SYNC: -100 .. +300 ms (more: the picture waits longer) */
+const SCOPE_TRIM = +(new URLSearchParams(location.search).get('scopesync') || 0);   /* debug: ?scopesync=MS, the picture waits MS longer */
+const scopeTrimMs = () => SCOPE_TRIM;
 function audibleFrame() {
   if (!ctx || !ctx.getOutputTimestamp) return Infinity;
   const ts = ctx.getOutputTimestamp();
@@ -1130,7 +1144,6 @@ function buildFx() {
   fxSync.push(lpSync); lpSync();
   settingRow(st, 'REC LOOP SMOOTHING', () => S.recGlide, (x) => { S.recGlide = x; }, () => { const ms = recGlideMs(); return ms < 2 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
   st.lastChild.style.marginBottom = '14px';
-  settingRow(st, 'SCOPE SYNC', () => S.scopeTrim, (x) => { S.scopeTrim = x; }, () => { const ms = scopeTrimMs(); return (ms > 0 ? '+' : '') + ms + ' MS'; });
   settingRow(st, 'MORPH', () => S.morph, (x) => { S.morph = x; }, () => { const ms = morphMs(); return ms < 16 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
   const v = document.getElementById('verb'); v.innerHTML = '';
   sliderRow(v, 'SIZE', P_VERB0, (x) => Math.round(x * 100));
@@ -1369,7 +1382,7 @@ placeScope();
    faint rule. The line being recorded grows in its lane and blinks. */
 const LANE_COL = ['#ff6b5b', '#f2b33d', '#b5d96a', '#4fd1a5', '#47c1e6', '#6f8cff', '#b07cff', '#ff6fb5'];
 const lc = document.getElementById('lanes'), lctx = lc.getContext('2d');
-let laneVer = -1, laneIdle = false;
+let laneVer = -1, laneIdle = false, laneC = 0;
 const laneCache = [];                              /* per line: { len, traces: [[t, y], ...] per control } */
 function laneTraces(k, len) {
   const by = new Map();
@@ -1383,7 +1396,8 @@ function lanesDraw() {
   if (!busy && laneIdle && laneVer === R.ver) return;   /* (nothing moves: drawn once) */
   laneIdle = !busy;
   const t = S.running || R.recording ? now() : (R.stopT || now()), LH = 5 * dpr, GAP = 2 * dpr, W = Wc;
-  if (laneVer !== R.ver) { laneVer = R.ver; for (let k = 0; k < R.nl; k++) laneCache[k] = { len: R.len[k], traces: laneTraces(k, R.len[k]) }; }
+  const C = cycLen();
+  if (laneVer !== R.ver || laneC !== C) { laneVer = R.ver; laneC = C; for (let k = 0; k < R.nl; k++) { const L = R.cyc[k] ? C : R.len[k]; laneCache[k] = { len: L, traces: laneTraces(k, L) }; } }
   lctx.clearRect(0, 0, Wc, Hc);
   for (let k = 0; k < 8; k++) {
     const y0 = k * (LH + GAP), col = LANE_COL[k];
@@ -1392,8 +1406,9 @@ function lanesDraw() {
     let len, traces, pos;
     if (live) { ({ len, traces } = laneCache[k]); pos = linePos(k, t); }
     else {                                         /* recording: what has been recorded so far */
-      len = sharedRec() ? R.len[0] : Math.max(100, t - R.rs);
-      traces = laneTraces(k, len); pos = sharedRec() ? linePos(0, t) : len;
+      const at = (R.recCyc ? R.p0 : 0) + (t - R.rs);
+      len = R.recCyc && R.nl ? Math.max(C, at) : Math.max(100, at);
+      traces = laneTraces(k, len); pos = at;
     }
     lctx.globalAlpha = 0.18; lctx.fillStyle = col; lctx.fillRect(0, y0, W, LH);
     lctx.globalAlpha = rec && (t / 250 | 0) % 2 ? 0.45 : 0.85; lctx.strokeStyle = col; lctx.lineWidth = dpr;
