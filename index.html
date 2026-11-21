@@ -170,6 +170,8 @@ input[type=range]::-moz-range-thumb { width: 10px; height: 16px; background: var
 .hint { color: var(--label); font-size: 11px; }
 footer { border-top: 1px solid var(--rule); padding: 12px; color: var(--label); font-size: 11px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
 footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inherit; color: var(--ink); }
+#rec { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#rec .hold { position: absolute; left: 0; bottom: 0; height: 3px; background: currentColor; width: 0; }
 #rec.blink { animation: blink .5s steps(1) infinite; }
 @keyframes blink { 50% { background: none; color: var(--ink); } }
 @media (prefers-reduced-motion: reduce) { #rec.blink { animation: none; } }
@@ -614,7 +616,7 @@ function loopLoad(loop) {                          /* a scene's lines: line 1 fr
 }
 function recUi() {
   const b = document.getElementById('rec');
-  b.textContent = R.recording ? 'Rec ' + (R.nl + 1) : R.nl ? 'Loop ' + R.nl : 'Rec';
+  b.firstChild.nodeValue = R.recording ? 'Rec ' + (R.nl + 1) : R.nl ? 'Loop ' + R.nl : 'Rec';   /* (the text; the hold bar stays) */
   b.classList.toggle('on', R.recording || R.nl > 0);
   b.classList.toggle('blink', R.recording);
 }
@@ -1194,10 +1196,22 @@ function saveUi() {
 /* ---------- input ---------- */
 document.getElementById('play').addEventListener('click', togglePlay);
 (() => {
-  const b = document.getElementById('rec'); let t = 0, held = false;
-  b.addEventListener('pointerdown', () => { held = false; t = setTimeout(() => { held = true; if (R.recording || R.nl) { recClear(); recUi(); say('LOOPS', 'CLEARED'); } }, REC_HOLD_MS); });
-  b.addEventListener('pointerup', () => { clearTimeout(t); if (!held) recPress(); });
-  b.addEventListener('pointerleave', () => clearTimeout(t));
+  /* a tap: REC; held 2 s: every line cleared. On a phone the browser would take a long press for itself (text
+     selection, a menu) and cancel the touch, so the button keeps the pointer and refuses those; a bar fills meanwhile. */
+  const b = document.getElementById('rec'); let t = 0, held = false, down = false, raf = 0, t0 = 0;
+  const bar = document.createElement('span'); bar.className = 'hold'; b.append(bar);
+  const stop = () => { clearTimeout(t); cancelAnimationFrame(raf); bar.style.width = '0'; down = false; };
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+  b.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    try { b.setPointerCapture(e.pointerId); } catch (x) {}
+    held = false; down = true; t0 = performance.now();
+    const grow = () => { bar.style.width = Math.min(100, (performance.now() - t0) / REC_HOLD_MS * 100) + '%'; raf = requestAnimationFrame(grow); };
+    if (R.recording || R.nl) raf = requestAnimationFrame(grow);
+    t = setTimeout(() => { held = true; cancelAnimationFrame(raf); bar.style.width = '0'; if (R.recording || R.nl) { recClear(); recUi(); say('LOOPS', 'CLEARED'); } }, REC_HOLD_MS);
+  });
+  b.addEventListener('pointerup', () => { const was = down; stop(); if (was && !held) recPress(); });
+  b.addEventListener('pointercancel', stop);
   b.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); recPress(); } });
 })();
 document.querySelectorAll('#modes button').forEach((b) => b.addEventListener('click', () => { pset(P_MODE, +b.dataset.m * 0.5); say('MODE', MODE_NAME[+b.dataset.m]); }));
