@@ -284,7 +284,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
   <section class="card" id="info">
     <h2><span class="k">SETTINGS</span><span class="spacer"></span><button id="reload" title="Reload the app">↻ Reload</button></h2>
     <div class="fx" id="settings"></div>
-    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each automation line loops at its own length; Shared, every line at the first one's length. Rec loop smoothing: how softly the lines move a control from one recorded value to the next, and from a loop's end back to its start; OFF keeps the steps as recorded.</p>
+    <p class="hint">FX + GLUE per scene: each scene stores and recalls the reverb and the compressor. Global: they stay as you set them, whatever you recall. Morph: how long a scene or preset takes to arrive from what plays now; OFF = at once (a 15 ms glide). Rec loop: Free, each automation line loops at its own length; Shared, every line at the first one's length. Rec loop smoothing: how softly the lines move a control from one recorded value to the next, and from a loop's end back to its start; OFF keeps the steps as recorded. Scope sync: the scope already waits for the sound to be heard; if it still looks ahead (Bluetooth headphones add their own delay), move it right until picture and sound land together.</p>
     <p class="hint" id="audioinfo"></p>
     <p class="hint"><button id="capture">Capture 5 s</button> <span id="capinfo">Records exactly what goes to the audio output, as a WAV file.</span></p>
 
@@ -474,7 +474,7 @@ const S = {
   patch: new Uint8Array(PATCH_N), dv: null,
   verb: [0.6, 0.45, 0, 0.25], hicut: 1, insert: false,
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
-  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false, recGlide: 0,
+  fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopsShared: false, recGlide: 0, scopeTrim: 0.25,
   last: {},                                     /* the scene last played in each preset: a preset comes back on it */
   presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
   migrated: new Set(), fresh: false,
@@ -761,7 +761,7 @@ const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 function presetDoc(k) { const p = S.presets[k]; return p ? { name: p.name, base: b64(p.base) } : null; }
 function sceneDoc(sc) { return sc ? { patch: b64(sc.patch), fx: sc.fx, loop: sc.loop } : null; }
 const STORE_V = 4;                              /* 4: a fresh start for presets + scenes (older saves are dropped) */
-function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, loopsShared: S.loopsShared, recGlide: S.recGlide, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, last: S.last, oct: S.oct, vol: S.vol }; }
+function settingsDoc() { return { v: STORE_V, morph: S.morph, fxGlobal: S.fxGlobal, loopsShared: S.loopsShared, recGlide: S.recGlide, scopeTrim: S.scopeTrim, verb: S.verb, hicut: S.hicut, insert: S.insert, glue: S.glue, ratio: S.ratio, preset: S.preset, scene: S.scene, last: S.last, oct: S.oct, vol: S.vol }; }
 function lsSet(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
 function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 async function dbSet(id, d) { if (DB && UID) { try { const ref = DB.collection('data/users/' + UID).doc(id); if (d) await ref.set(d); else await ref.delete(); } catch (e) {} } }
@@ -819,6 +819,7 @@ function applySettingsDoc(d) {
   if (typeof d.fxGlobal === 'boolean') S.fxGlobal = d.fxGlobal;
   if (typeof d.loopsShared === 'boolean') S.loopsShared = d.loopsShared;
   if (d.recGlide >= 0 && d.recGlide <= 1) S.recGlide = +d.recGlide;
+  if (d.scopeTrim >= 0 && d.scopeTrim <= 1) S.scopeTrim = +d.scopeTrim;
   if (Array.isArray(d.glue) && d.glue.length === 4) S.glue = d.glue.map((x) => clamp01(+x || 0));
   if (d.ratio >= 2 && d.ratio <= 10) S.ratio = Math.round(d.ratio * 2) / 2;
   const pk = d.preset !== undefined ? d.preset : d.slot;
@@ -925,11 +926,12 @@ const lum = new Float32Array(SC * SC), img = sctx.createImageData(SC, SC);
    drawn once the output says that frame is playing (the output's latency later than it was made). */
 let pending = [];
 function scopeFeed(pts, f) { pending.push({ pts, f }); if (pending.length > 96) pending.shift(); }
+const scopeTrimMs = () => Math.round(S.scopeTrim * 400 - 100);   /* SCOPE SYNC: -100 .. +300 ms (more: the picture waits longer) */
 function audibleFrame() {
   if (!ctx || !ctx.getOutputTimestamp) return Infinity;
   const ts = ctx.getOutputTimestamp();
   if (!ts || !(ts.contextTime > 0)) return Infinity;
-  return (ts.contextTime + (performance.now() - ts.performanceTime) / 1000) * ctx.sampleRate;
+  return (ts.contextTime + (performance.now() - ts.performanceTime) / 1000 - scopeTrimMs() / 1000) * ctx.sampleRate;
 }
 function scopeDraw() {
   for (let i = 0; i < lum.length; i++) lum[i] *= 0.82;
@@ -1128,6 +1130,7 @@ function buildFx() {
   fxSync.push(lpSync); lpSync();
   settingRow(st, 'REC LOOP SMOOTHING', () => S.recGlide, (x) => { S.recGlide = x; }, () => { const ms = recGlideMs(); return ms < 2 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
   st.lastChild.style.marginBottom = '14px';
+  settingRow(st, 'SCOPE SYNC', () => S.scopeTrim, (x) => { S.scopeTrim = x; }, () => { const ms = scopeTrimMs(); return (ms > 0 ? '+' : '') + ms + ' MS'; });
   settingRow(st, 'MORPH', () => S.morph, (x) => { S.morph = x; }, () => { const ms = morphMs(); return ms < 16 ? 'OFF' : ms < 1000 ? Math.round(ms) + ' MS' : (ms / 1000).toFixed(1) + ' S'; });
   const v = document.getElementById('verb'); v.innerHTML = '';
   sliderRow(v, 'SIZE', P_VERB0, (x) => Math.round(x * 100));
