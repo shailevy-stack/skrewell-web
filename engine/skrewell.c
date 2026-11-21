@@ -83,6 +83,7 @@ void skr_init(skr_engine *e, float sr) {
     e->scX = e->scY = e->scXs = e->scYs = e->scS[0] = e->scS[1] = 0.5f;
     e->glue = (skr_glue){-18.0f, 4.0f, 10.0f, 200.0f, 4.0f, 1.0f};
     e->gl_gain = 1.f;
+    e->duck = 1.f;
     e->dcR = 1.f - 6.2831853f * 5.f / sr;     /* the levers' sum can sit off zero (the normalisers): no DC to the FX or out */
     e->verb = (skr_verb){0.6f, 0.45f, 0.5f, 0.2f};
     /* every oscillator starts at a different phase (Reaktor's L/R never start identical) */
@@ -104,6 +105,11 @@ void skr_morph(skr_engine *e, float ms) {
     e->morph_t = 0.f;
     e->morph_len = ms * 0.001f * e->sr;
 }
+
+/* A snap: the new patch with nothing left of the old one. The levers dip out over ~6 ms, then (next block) every glide
+ * jumps to its target, the delay lines, filters and normalisers start empty, and the levers come back in over ~6 ms.
+ * The reverb is after the dip, so its tail rings on. For recalls with MORPH off: an immediate change. */
+void skr_snap(skr_engine *e) { if (e->snap_st == 0 || e->snap_st == 3) e->snap_st = 1; }
 
 static void patch_glide(skr_engine *e, unsigned n) {
     const unsigned nf = (unsigned)((sizeof(skr_patch) - __builtin_offsetof(skr_patch, bars)) / sizeof(float));
@@ -136,7 +142,12 @@ static void patch_glide(skr_engine *e, unsigned n) {
 }
 
 static void control(skr_engine *e, unsigned n) {
-    int reshifted = 0;
+    int reshifted = 0, snap = e->snap_st == 2;
+    if (snap) {
+        e->ps = e->p; e->ps_ok = 1; e->morph_len = 0.f;
+        memset(e->dbuf, 0, sizeof e->dbuf);     /* (silence: an encoded 0 is 0) */
+        memset(e->dacc, 0, sizeof e->dacc);
+    }
     patch_glide(e, n);
     const float sr = e->sr; const skr_patch *P = &e->ps; const int m = P->mode;
     const float inv_n = 1.f / (float)(n ? n : 1u);
@@ -166,8 +177,19 @@ static void control(skr_engine *e, unsigned n) {
         }
         float dp = lerpf(P->delShort, P->delLong, shaper(P->delay, P->bars[SKR_F_DELAY][v]));
         e->cDEL[v] = clampf(1000.f / pitch_hz(dp), 0, MAXDEL_MS);
+        if (snap) {                                /* everything at its new place, nothing of the old sound */
+            e->cAp[v] = e->cA[v]; e->cAd[v] = 0.f;
+            for (int s = 0; s < 2; s++) {
+                int li = s * NV + v;
+                e->Fs[li] = e->cF[v]; e->Ds[li] = e->cDEL[v];
+                e->env[li] = e->envLP[li] = 0.f;
+                e->ic[li][0] = e->ic[li][1] = e->ic[li][2] = e->ic[li][3] = 0.f;
+                e->ysh[0][li] = e->ysh[1][li] = 0.f;
+            }
+        }
         e->cFBp[v] = e->cFB[v];
         e->cFB[v] = P->bars[SKR_F_FEEDBACK][v];
+        if (snap) e->cFBp[v] = e->cFB[v];
         e->cFBd[v] = (e->cFB[v] - e->cFBp[v]) * inv_n;
         for (int s = 0; s < 2; s++) {
             float fc = s == 0 ? fcA : fcB;
@@ -196,6 +218,7 @@ static void control(skr_engine *e, unsigned n) {
             e->dinv[li] = 1.f / (float)(1u << e->dshift[li]);
         }
     }
+    if (snap) e->snap_st = 3;
     float db = sel3(P->out, -36, 0, 18);
     db = floorf(db * 2.f + 0.5f) * 0.5f - 18.f;
     e->gainT = e->mute ? 0.f : powf(10.f, db / 20.f);
@@ -495,6 +518,11 @@ SKR_RAM void skr_block_end(skr_engine *e, float *outL, float *outR, unsigned n) 
     for (unsigned i = 0; i < n; i++) {
         e->gainS += e->gCo * (e->gainT - e->gainS);
         float l = e->sideOut[0][i] * e->gainS, r = e->sideOut[1][i] * e->gainS;
+        if (e->snap_st) {                          /* a snap: down, (cleared next block), up */
+            if (e->snap_st == 1) { e->duck -= 1.f / 256.f; if (e->duck <= 0.f) { e->duck = 0.f; e->snap_st = 2; } }
+            else if (e->snap_st == 3) { e->duck += 1.f / 256.f; if (e->duck >= 1.f) { e->duck = 1.f; e->snap_st = 0; } }
+            l *= e->duck; r *= e->duck;
+        }
         float yl = l - e->dcX[0] + e->dcR * e->dcY[0], yr = r - e->dcX[1] + e->dcR * e->dcY[1];
         e->dcX[0] = l; e->dcX[1] = r;
         e->dcY[0] = l = yl; e->dcY[1] = r = yr;

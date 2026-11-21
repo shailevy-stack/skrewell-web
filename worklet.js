@@ -21,6 +21,7 @@ class SkrewellProc extends AudioWorkletProcessor {
       case 'pf': this.dv().setFloat32(m.off, m.x, true); break;
       case 'pm': w.set_mode(m.m); break;
       case 'morph': w.morph(m.ms); break;
+      case 'snap': w.snap(); break;
       case 'patch': new Uint8Array(w.memory.buffer, w.patch_ptr(), w.patch_size()).set(m.bytes); break;
       case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4], m.a[5], m.a[6]); break;
       case 'glue': w.set_glue(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4]); break;
@@ -49,7 +50,7 @@ class SkrewellProc extends AudioWorkletProcessor {
     for (let i = 0; i < n; i += 2) { this.sbuf.set(sc.subarray(i * 16, i * 16 + 16), this.sn); this.sn += 16; }
     if (this.sn >= this.sbuf.length) {
       const mo = w.morphing(), ps = mo ? new Float32Array(new Float32Array(mem, w.ps_ptr() + 4, 68)) : null;   /* a morph: the bars and knobs as they sound */
-      this.port.postMessage({ c: 'scope', pts: this.sbuf, g: w.glue_gain(), ps }, ps ? [this.sbuf.buffer, ps.buffer] : [this.sbuf.buffer]);
+      this.port.postMessage({ c: 'scope', pts: this.sbuf, f: currentFrame + n, g: w.glue_gain(), ps }, ps ? [this.sbuf.buffer, ps.buffer] : [this.sbuf.buffer]);
       this.sbuf = new Float32Array(4 * 64 * 16); this.sn = 0;
     }
     return true;

@@ -87,6 +87,8 @@ typedef struct {
     uint8_t ps_ok;
     skr_patch m0;                              /* a morph's starting point (skr_morph) */
     float morph_t, morph_len;                  /* samples into the morph, and its length (0: none) */
+    volatile uint8_t snap_st;                  /* a snap (skr_snap): 1 fading out, 2 to clear, 3 fading in */
+    float duck;                                /* the levers' level around a snap */
     skr_glue glue;
     skr_verb verb;
     uint8_t mute;
@@ -105,6 +107,7 @@ void skr_load(skr_engine *e, const skr_patch *p);   /* keeps the running state, 
 /* the next patch change (a snapshot recall) moves there over ms milliseconds, an S-curve from what plays now;
  * ms <= 15: the usual 15 ms glide. Moves made during it head for their new values the same way. */
 void skr_morph(skr_engine *e, float ms);
+void skr_snap(skr_engine *e);                 /* the patch just set, at once: a 6 ms dip, the old tail and glides dropped */
 /* Render n stereo frames, float -1..1, interleaved or split. scope (may be NULL) gets
  * n*2*SKR_NV floats: for every frame, each voice's x,y scope point. */
 void skr_render(skr_engine *e, float *outL, float *outR, unsigned n, float *scope);

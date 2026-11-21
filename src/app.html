@@ -411,6 +411,7 @@ class SkrewellProc extends AudioWorkletProcessor {
       case 'pf': this.dv().setFloat32(m.off, m.x, true); break;
       case 'pm': w.set_mode(m.m); break;
       case 'morph': w.morph(m.ms); break;
+      case 'snap': w.snap(); break;
       case 'patch': new Uint8Array(w.memory.buffer, w.patch_ptr(), w.patch_size()).set(m.bytes); break;
       case 'verb': w.set_verb(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4], m.a[5], m.a[6]); break;
       case 'glue': w.set_glue(m.a[0], m.a[1], m.a[2], m.a[3], m.a[4]); break;
@@ -439,7 +440,7 @@ class SkrewellProc extends AudioWorkletProcessor {
     for (let i = 0; i < n; i += 2) { this.sbuf.set(sc.subarray(i * 16, i * 16 + 16), this.sn); this.sn += 16; }
     if (this.sn >= this.sbuf.length) {
       const mo = w.morphing(), ps = mo ? new Float32Array(new Float32Array(mem, w.ps_ptr() + 4, 68)) : null;   /* a morph: the bars and knobs as they sound */
-      this.port.postMessage({ c: 'scope', pts: this.sbuf, g: w.glue_gain(), ps }, ps ? [this.sbuf.buffer, ps.buffer] : [this.sbuf.buffer]);
+      this.port.postMessage({ c: 'scope', pts: this.sbuf, f: currentFrame + n, g: w.glue_gain(), ps }, ps ? [this.sbuf.buffer, ps.buffer] : [this.sbuf.buffer]);
       this.sbuf = new Float32Array(4 * 64 * 16); this.sn = 0;
     }
     return true;
@@ -707,6 +708,7 @@ function playScene(sc) {                         /* morph there; its FX + GLO un
   for (let id = 0; id < P_N; id++) recallWas[id] = pget(id);
   post({ c: 'morph', ms: morphMs() });
   loadPatch(sc.patch);
+  if (morphMs() < 16) post({ c: 'snap' });       /* MORPH off: at once, nothing of the old sound left */
   if (!S.fxGlobal && sc.fx) fxApply(sc.fx);
   loopFollowsRecall(sc.loop);
 }
@@ -894,7 +896,7 @@ async function startAudio() {
     }
     node = new AudioWorkletNode(ctx, 'skrewell', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { bytes: WASM } });
     node.connect(ctx.destination);
-    node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts); S.gr = e.data.g; if (e.data.ps || S.ps) { S.ps = e.data.ps; dirty = true; } } else if (e.data.c === 'cap') capDone(e.data); };
+    node.port.onmessage = (e) => { if (e.data.c === 'scope') { scopeFeed(e.data.pts, e.data.f); S.gr = e.data.g; if (e.data.ps || S.ps) { S.ps = e.data.ps; dirty = true; } } else if (e.data.c === 'cap') capDone(e.data); };
     loadPatch(S.patch); verbApply(); glueApply(); post({ c: 'vol', x: S.vol });
     return true;
   } catch (e) {
@@ -919,17 +921,28 @@ async function togglePlay() {
 /* ---------- the scope: a persistence image, like the FM-1's ---------- */
 const SC = 540, sc = document.getElementById('scope'), sctx = sc.getContext('2d');
 const lum = new Float32Array(SC * SC), img = sctx.createImageData(SC, SC);
+/* The scope draws what you hear when you hear it: each batch of points carries the audio frame it ends on, and is
+   drawn once the output says that frame is playing (the output's latency later than it was made). */
 let pending = [];
-function scopeFeed(pts) { pending.push(pts); if (pending.length > 8) pending.shift(); }
+function scopeFeed(pts, f) { pending.push({ pts, f }); if (pending.length > 96) pending.shift(); }
+function audibleFrame() {
+  if (!ctx || !ctx.getOutputTimestamp) return Infinity;
+  const ts = ctx.getOutputTimestamp();
+  if (!ts || !(ts.contextTime > 0)) return Infinity;
+  return (ts.contextTime + (performance.now() - ts.performanceTime) / 1000) * ctx.sampleRate;
+}
 function scopeDraw() {
   for (let i = 0; i < lum.length; i++) lum[i] *= 0.82;
-  for (const pts of pending) {
+  const now = audibleFrame();
+  let n = 0;
+  while (n < pending.length && !(pending[n].f > now)) n++;
+  for (const { pts } of pending.slice(0, n)) {
     for (let i = 0; i < pts.length; i += 2) {
       const x = Math.round((pts[i] * 0.92 / 1.2 + 1) * 0.5 * (SC - 1)), y = Math.round((1 - pts[i + 1] * 0.92 / 1.2) * 0.5 * (SC - 1));
       if (x >= 0 && x < SC && y >= 0 && y < SC) { const j = y * SC + x; lum[j] = Math.min(1, lum[j] + 0.5); }
     }
   }
-  pending = [];
+  pending = pending.slice(n);
   const d = img.data;
   for (let i = 0, j = 0; i < lum.length; i++, j += 4) { const v = lum[i] * 255; d[j] = d[j + 1] = d[j + 2] = v; d[j + 3] = 255; }
   sctx.putImageData(img, 0, 0);
@@ -1167,7 +1180,8 @@ function scenesUi() {
   if (!box.childElementCount) {
     for (let j = 0; j < NSCENES; j++) {
       const b = document.createElement('button'); b.className = 'scene'; b.textContent = j + 1;
-      b.addEventListener('click', () => { if (S.armed) { storeScene(j); S.armed = false; saveUi(); } else recallScene(j); });
+      b.addEventListener('pointerdown', (e) => { if (e.button) return; if (S.armed) { storeScene(j); S.armed = false; saveUi(); } else recallScene(j); });   /* (on the touch, not its release) */
+      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (S.armed) { storeScene(j); S.armed = false; saveUi(); } else recallScene(j); } });
       box.append(b);
     }
   }
