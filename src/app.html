@@ -1424,8 +1424,8 @@ placeScope();
 
 /* ---------- the automation lines, one lane each under the title row ----------
    A lane shows its line's movement over its whole length (each recorded control a trace; an offset centred), and
-   where it is now: a bright head moving at the line's own speed, so the polyrhythm is there to see. Empty lanes: a
-   faint rule. The line being recorded grows in its lane and blinks. */
+   where it is now: a bright head moving at the line's own speed, so the polyrhythm is there to see. Empty lanes:
+   nothing; lane 1 appears with the first recording, lane 2 with the second, and so on. The line being recorded grows in its lane and blinks. */
 const LANE_COL = ['#ff6b5b', '#f2b33d', '#b5d96a', '#4fd1a5', '#47c1e6', '#6f8cff', '#b07cff', '#ff6fb5'];
 const lc = document.getElementById('lanes'), lctx = lc.getContext('2d');
 let laneVer = -1, laneIdle = false, laneC = 0;
@@ -1448,7 +1448,7 @@ function lanesDraw() {
   for (let k = 0; k < 8; k++) {
     const y0 = k * (LH + GAP), col = LANE_COL[k];
     const rec = R.recording && k === R.nl, live = k < R.nl;
-    if (!live && !rec) { lctx.fillStyle = '#2a2a2a'; lctx.fillRect(0, y0 + LH / 2 - dpr / 2, W, dpr); continue; }
+    if (!live && !rec) continue;                   /* a lane shows only once its line is recorded (or recording) */
     let len, traces, pos;
     if (live) { ({ len, traces } = laneCache[k]); pos = linePos(k, t); }
     else {                                         /* recording: what has been recorded so far */
