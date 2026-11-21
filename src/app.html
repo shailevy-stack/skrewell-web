@@ -296,7 +296,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
     <h3>THE PANEL, TOP TO BOTTOM</h3>
     <div class="modes stack">
       <div><b>PLAY</b><span>Starts and stops the sound (Space). While it plays, the screen stays awake.</span></div>
-      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With REC LOOP on Free (settings), every line keeps its own length, so they drift against each other; on Shared, the lines share one cycle, as long as the longest: each plays from its top, holds its last values when it ends, and all start again together; a take recorded on Shared starts where the cycle is, and one that runs past the end stretches the cycle. Only the controls you touch are recorded. A control an earlier line already moves is taken over by the new line only over the stretch you recorded, from your first move of it until REC stops; outside that stretch the earlier line keeps playing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
+      <div><b>REC</b><span>Records automation lines: your moves, not sound. Press REC and move anything; press again and that line loops from that moment, at the length you played. Press REC again for a new line while the others keep looping, up to 8. With REC LOOP on Free (settings), every line keeps its own length, so they drift against each other; on Shared, the lines share one cycle, as long as the longest: each plays from its top, holds its last values when it ends, and all start again together; a take recorded on Shared starts where the cycle is, and one that runs past the end stretches the cycle. Only the controls you touch are recorded. A control an earlier line already moves is taken over by the new line only over the stretch you recorded, from your first move of it until REC stops; outside that stretch the earlier line keeps playing it. Your hand always wins while it moves a control. Hold REC 2 s to clear every line, also from the scene you're on. A scene saves its lines and how they sit against each other; recalling it starts line 1 from its beginning and the others in the same relation.</span></div>
       <div><b>SCOPE</b><span>Each channel's left lever drawn against its right, eight figures over each other. Tap it (or F) and the controls fade away; tap again (or Esc) to bring them back.</span></div>
       <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S8) and the mode. Messages appear in the same row for a moment.</span></div>
       <div><b>SCENE</b><span>Eight scenes of the current preset. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
@@ -633,6 +633,12 @@ function recPlay() {
     const v = R.sm[id];
     if (Math.abs(v - R.out[id]) > 1e-5) { papply(id, v); R.out[id] = v; }
   }
+}
+function sceneHasLines() { const p = S.presets[S.preset]; return !!(p && S.scene >= 0 && p.scenes[S.scene] && p.scenes[S.scene].loop); }
+function eraseSceneLines() {                       /* REC held: the scene playing loses its saved lines too */
+  if (!sceneHasLines()) return;
+  S.presets[S.preset].scenes[S.scene].loop = null;
+  savePreset(S.preset); presetsUi();
 }
 function recClear() { R.recording = false; R.nl = 0; R.ev = []; R.has.fill(0); R.ver++; }
 function recClose() {
@@ -1290,7 +1296,7 @@ document.getElementById('play').addEventListener('click', togglePlay);
     held = false; down = true; t0 = performance.now();
     const grow = () => { bar.style.width = Math.min(100, (performance.now() - t0) / REC_HOLD_MS * 100) + '%'; raf = requestAnimationFrame(grow); };
     if (R.recording || R.nl) raf = requestAnimationFrame(grow);
-    t = setTimeout(() => { held = true; cancelAnimationFrame(raf); bar.style.width = '0'; if (R.recording || R.nl) { recClear(); recUi(); say('LOOPS', 'CLEARED'); } }, REC_HOLD_MS);
+    t = setTimeout(() => { held = true; cancelAnimationFrame(raf); bar.style.width = '0'; if (R.recording || R.nl || sceneHasLines()) { recClear(); eraseSceneLines(); recUi(); say('LOOPS', 'CLEARED'); } }, REC_HOLD_MS);
   });
   b.addEventListener('pointerup', () => { const was = down; stop(); if (was && !held) recPress(); });
   b.addEventListener('pointercancel', stop);
@@ -1311,7 +1317,7 @@ document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (e.repeat && k !== 'arrowup' && k !== 'arrowdown') return;
   if (k === ' ') { e.preventDefault(); togglePlay(); }
-  else if (k === 'r') { recKeyHeld = false; recKeyT = setTimeout(() => { recKeyHeld = true; if (R.recording || R.nl) { recClear(); recUi(); say('LOOPS', 'CLEARED'); } }, REC_HOLD_MS); }
+  else if (k === 'r') { recKeyHeld = false; recKeyT = setTimeout(() => { recKeyHeld = true; if (R.recording || R.nl || sceneHasLines()) { recClear(); eraseSceneLines(); recUi(); say('LOOPS', 'CLEARED'); } }, REC_HOLD_MS); }
   else if (k >= '1' && k <= '8') { const i = +k - 1; if (i < FN_LIST[S.patch[0]].length) { S.fn = i; dirty = true; } }
   else if (k === '<' || k === ',') fnStep(-1);
   else if (k === '>' || k === '.') fnStep(1);
