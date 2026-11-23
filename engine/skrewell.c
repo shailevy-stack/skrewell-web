@@ -398,7 +398,10 @@ static inline AI float ap_proc(skr_engine *e, int k, float x) {
 }
 static inline AI void verb(skr_engine *e, float *l, float *r) {
     if (e->verb.mix <= 0.f) return;
-    float a = ap_proc(e, 1, ap_proc(e, 0, *l)), b = ap_proc(e, 3, ap_proc(e, 2, *r));
+    float il = *l, ir = *r;                      /* the low and high cut first: on what goes into the reverb */
+    if (e->rv_hpon) { il = bq(e->rv_fz[0][0], e->rv_hpc, il); ir = bq(e->rv_fz[1][0], e->rv_hpc, ir); }
+    if (e->rv_lpon) { il = bq(e->rv_fz[0][1], e->rv_lpc, il); ir = bq(e->rv_fz[1][1], e->rv_lpc, ir); }
+    float a = ap_proc(e, 1, ap_proc(e, 0, il)), b = ap_proc(e, 3, ap_proc(e, 2, ir));
     float d[SKR_RV_N], s = 0; unsigned p = e->rv_pos;
     for (int i = 0; i < SKR_RV_N; i++) {
         e->rv_len[i] += e->rv_lenCo * (e->rv_lenT[i] - e->rv_len[i]);
@@ -415,8 +418,6 @@ static inline AI void verb(skr_engine *e, float *l, float *r) {
     if (++p >= SKR_RV_LEN) p = 0;
     e->rv_pos = (uint16_t)p;
     float wl = d[0] - d[2], wr = d[1] - d[3];   /* uncorrelated sides; each keeps its own side of the image */
-    if (e->rv_hpon) { wl = bq(e->rv_fz[0][0], e->rv_hpc, wl); wr = bq(e->rv_fz[1][0], e->rv_hpc, wr); }
-    if (e->rv_lpon) { wl = bq(e->rv_fz[0][1], e->rv_lpc, wl); wr = bq(e->rv_fz[1][1], e->rv_lpc, wr); }
     *l = *l * e->rv_dry + wl * e->rv_wet; *r = *r * e->rv_dry + wr * e->rv_wet;
 }
 
