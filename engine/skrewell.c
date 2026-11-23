@@ -184,7 +184,7 @@ static void control(skr_engine *e, unsigned n) {
                 e->Fs[li] = e->cF[v]; e->Ds[li] = e->cDEL[v];
                 e->env[li] = e->envLP[li] = 0.f;
                 e->ic[li][0] = e->ic[li][1] = e->ic[li][2] = e->ic[li][3] = 0.f;
-                e->ysh[0][li] = e->ysh[1][li] = 0.f;
+                e->ysh[0][li] = e->ysh[1][li] = e->yfb[li] = 0.f;
             }
         }
         e->cFBp[v] = e->cFB[v];
@@ -446,7 +446,10 @@ static SKR_RAM void side_range(skr_engine *e, int s, unsigned i0, unsigned i1, f
             float FMs, AMs;
             if (m == SKR_SUBTOTAL) {
                 float sm = 0;
+                /* Reaktor's FB = VoiceCombiner(y) - UnitDelay(y): the other channels, plus the opposite channel's
+                 * y[n-1] - y[n-2] (the subtraction is a sample late), which couples the high states harder */
                 for (int u = 0; u < NV; u++) if (u != v) sm += src[oth + u];
+                float yo = src[oth + v]; sm += yo - e->yfb[li]; e->yfb[li] = yo;
                 FMs = e->cFV[v] * sm; AMs = e->cAV[v] * sm;
             } else {
                 const uint8_t *ix = e->cvIx[li];

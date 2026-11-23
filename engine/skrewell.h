@@ -59,6 +59,7 @@ typedef struct {
     /* hot per-sample state first: small offsets from the engine's base (the big buffers are at the end) */
     float phase[SKR_NL], env[SKR_NL], envLP[SKR_NL];
     float ysh[2][SKR_NL];                      /* lever outputs by sample parity */
+    float yfb[SKR_NL];                         /* Subtotal: the opposite lever's output one sample before src */
     float ic[SKR_NL][4], posF[SKR_NL], posA[SKR_NL];
     uint8_t cvIx[SKR_NL][4]; float cvFr[SKR_NL][2], dinv[SKR_NL];
     uint32_t dpos[SKR_NL];
