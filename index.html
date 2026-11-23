@@ -78,7 +78,7 @@ body.fullscope #scopetap { display: block; }
 .modes3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .modes3 button { border-right-width: 0; padding: 6px 4px; line-height: 1.2; }
 .modes3 button:last-child { border-right-width: 1px; }
-/* scenes: 8 per preset */
+/* scenes: 16 per preset, two rows of 8 */
 .scenes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; min-width: 0; }
 .scene { padding: 6px 0; text-align: center; font-variant-numeric: tabular-nums; position: relative; }
 .scene.empty { border-style: dashed; color: var(--faint); }
@@ -313,7 +313,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>MODE</b><span>How the channels are wired. Implant Quad: square-wave oscillators, a high-pass and a low-pass filter inside the delay loop. Xung Tekh: square-wave oscillators, one filter (low-pass to band-pass to high-pass) before the loop. Subtotal: rounder oscillators, no filter, and each channel is pushed by the sum of all the others.</span></div>
       <div><b>NORMALIZER</b><span>Holds every voice at a steady level however hard it is pushed, so the sound never runs away or dies out. It has no control of its own.</span></div>
       <div><b>PRESET</b><span>One of Lazyfish's 89 instruments. Its hidden settings never change.</span></div>
-      <div><b>SCENE</b><span>Your state of the panel inside a preset. Each preset has eight.</span></div>
+      <div><b>SCENE</b><span>Your state of the panel inside a preset. Each preset has sixteen.</span></div>
       <div><b>AUTOMATION LINE</b><span>A recording of your moves that loops.</span></div>
     </div>
 
@@ -369,11 +369,11 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
         <li>Hold REC 2 s to clear every line.</li>
       </ol><span>Only what you touch is recorded. A newer line takes a control over only for the stretch it recorded; outside it, the earlier line keeps playing it. Your hand wins while it moves. How lines relate is set by REC LOOP in settings: Free (each its own length), Stretch (one cycle, as long as the longest line) or Fixed (line 1 sets the cycle). A scene stores its lines.</span></div>
       <div><b>SCOPE</b><span>Each channel's left side drawn against its right, eight figures over each other. Tap it (or F) and the controls fade away; tap again (or Esc) to bring them back.</span></div>
-      <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S8) and the mode. Messages appear in the same row for a moment.</span></div>
-      <div><b>SCENE</b><span>Eight scenes of the current preset. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
-      <div><b>SAVE</b><span>Arms saving: the eight scene cells light up. Tap one to store what plays now there, automation lines included. Whatever was in it is overwritten, without asking. Tap SAVE again to cancel.</span></div>
+      <div><b>HEADER</b><span>The preset's number and name, the scene (S1–S16) and the mode. Messages appear in the same row for a moment.</span></div>
+      <div><b>SCENE</b><span>Sixteen scenes of the current preset, in two rows. Tap one to recall it: it morphs in from what plays now (see MORPH in settings). A filled cell has a scene stored; an empty one is free.</span></div>
+      <div><b>SAVE</b><span>Arms saving: the scene cells light up. Tap one to store what plays now there, automation lines included. Whatever was in it is overwritten, without asking. Tap SAVE again to cancel.</span></div>
       <div><b>MODE</b><span>Implant Quad, Xung Tekh or Subtotal (Z, X, C).</span></div>
-      <div><b>FUNCTION</b><span>‹ › step through the functions (or 1–8); the faders show the one you pick. Subtotal has no filter, so it has six.</span></div>
+      <div><b>FUNCTION</b><span>‹ › step through the functions (or 1–8); the faders show the one you pick. Subtotal has no filter, so its two filter functions drop out: six in all.</span></div>
       <div><b>FADERS</b><span>Eight faders, one per channel, for the chosen function. Drag with as many fingers as you like; each finger moves its own fader. ← → pick a channel and ↑ ↓ move it from the keyboard (Shift for bigger steps).</span></div>
       <div><b>DRAW · WRAP · RAND</b><span>How a drag edits (A, S, D). DRAW sets the fader you touch. WRAP moves all eight together, folding back at the ends so their pattern is kept. RAND scatters all eight each time you touch.</span></div>
       <div><b>RANDOMISE ALL</b><span>New positions for all the faders, in every function at once. Nothing else changes: mode, knobs, FX and GLUE stay where they are. On a keyboard: the ? key.</span></div>
@@ -493,7 +493,7 @@ const S = {
   glue: [0.5, 4 / 18, 0.463, 1], ratio: 4,
   fn: 0, chan: 0, edit: 0, oct: 0, preset: 0, scene: 0, armed: false, fxGlobal: false, loopMode: 0, recGlide: Math.sqrt(0.05),   /* (REC LOOP SMOOTHING: 50 ms to start with) */
   last: {},                                     /* the scene last played in each preset: a preset comes back on it */
-  presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[8]} */
+  presets: new Array(NSLOTS).fill(null),        /* the player's: {name, base, scenes[16]} */
   migrated: new Set(), fresh: false,
   running: false, gr: 1, vol: 0.8, morph: 0, ps: null,
 };
@@ -722,9 +722,9 @@ function recUi() {
 
 /* ---------- presets and scenes ----------
    A preset is an instrument: the hidden values every preset of the original carries (ranges, FLOW pairs, level),
-   locked, plus a name and 8 scenes. A scene is everything on the panel: mode, faders, knobs, FX + GLO (unless they
+   locked, plus a name and 16 scenes. A scene is everything on the panel: mode, faders, knobs, FX + GLO (unless they
    are kept global) and its loop. Presets 1-89 are the original's Bank 1; each has scene 1 from its own panel. */
-const NSCENES = 8;
+const NSCENES = 16;
 /* engine families: presets whose hidden ranges and FLOW pairs (bytes 280..440) are identical share an engine;
    numbered E1.. by family size, largest first (the bank's order and names stay as they are) */
 const ENGINES = [];
