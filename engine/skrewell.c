@@ -33,6 +33,7 @@ static inline __attribute__((always_inline)) void *skr_far_ptr(void *fn) { void 
 #define NL SKR_NL
 #define MAXDEL_MS 3000.0f
 
+#define SKR_LR_OFS 0.01f                     /* R's oscillator start, in cycles after L's */
 static inline AI float clampf(float x, float lo, float hi) { return x < lo ? lo : (x > hi ? hi : x); }
 static inline AI float lerpf(float a, float b, float t) { return a + (b - a) * t; }
 /* fast 2^x, |rel err| < 2e-4 */
@@ -86,11 +87,11 @@ void skr_init(skr_engine *e, float sr) {
     e->duck = 1.f;
     e->dcR = 1.f - 6.2831853f * 5.f / sr;     /* the levers' sum can sit off zero (the normalisers): no DC to the FX or out */
     e->verb = (skr_verb){0.6f, 0.45f, 0.5f, 0.2f};
-    /* every oscillator starts at a different phase (Reaktor's L/R never start identical) */
-    uint32_t sd = 22222;
+    /* L and R start (almost) together, as in Reaktor, where they then lock, drift, mirror and lock again: its
+     * stereo comes from a tiny asymmetry, not from scattered starts. Ours is exactly symmetric (each side reads the
+     * other's previous sample, so the two cores run in parallel), so R starts a hair later instead. */
     for (int i = 0; i < NL; i++) {
-        sd = (uint32_t)(((uint64_t)sd * 16807u) % 2147483647u);
-        e->phase[i] = (float)sd / 2147483647.f;
+        e->phase[i] = i < NV ? 0.f : SKR_LR_OFS;
         e->envLP[i] = 1.f;
     }
     for (int i = 0; i < NL; i++) { e->Fs[i] = 100.f; e->Ds[i] = 10.f; }
@@ -185,6 +186,7 @@ static void control(skr_engine *e, unsigned n) {
                 e->env[li] = e->envLP[li] = 0.f;
                 e->ic[li][0] = e->ic[li][1] = e->ic[li][2] = e->ic[li][3] = 0.f;
                 e->ysh[0][li] = e->ysh[1][li] = e->yfb[li] = 0.f;
+                e->phase[li] = s ? SKR_LR_OFS : 0.f;
             }
         }
         e->cFBp[v] = e->cFB[v];
