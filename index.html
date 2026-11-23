@@ -138,7 +138,9 @@ body.info .main-card, body.info .scopehint { display: none; }
 .knob { flex: 1 1 0; min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border: 1px solid var(--rule); touch-action: none; cursor: ns-resize; user-select: none; -webkit-user-select: none; }
 .knob svg { width: 52px; height: 52px; }
 .knob .lbl { font-size: 10px; letter-spacing: .06em; }
-.knob .v { font-variant-numeric: tabular-nums; }
+.knob .v { font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.knob.off { cursor: default; }
+.knob.off .lbl { color: var(--faint); }   /* (FILTER in Subtotal: no filter to set) */
 
 .octs { display: flex; gap: 4px; flex-wrap: wrap; }
 .octs button { padding: 4px 9px; }
@@ -343,7 +345,7 @@ footer kbd { border: 1px solid var(--outline); padding: 0 4px; font-family: inhe
       <div><b>6 LOW-PASS · LOW-BAND-HIGH</b><span>Implant Quad: the low-pass filter, which carries the high-pass along with it. Xung Tekh: the filter type, from low-pass through band-pass to high-pass.</span></div>
       <div><b>7 DELAY</b><span>The delay time, from about 1 ms to 3 s within the preset's range. With feedback up, short times ring at a pitch of their own; long times bring back what the voice did a moment ago.</span></div>
       <div><b>8 FEEDBACK</b><span>How much of the channel's output returns to its input. High, the voice feeds itself and rings on.</span></div>
-      <div><b>OSC · FILTER · DELAY</b><span>Each changes how its function's faders are read, not the faders themselves. In the middle, a fader's position sets its value directly; turned down, most positions give lower values (lower pitch, darker filters, shorter delays); turned up, higher. A fader at 0 or 100 stays at the end of the range. FILTER acts on both filter functions.</span></div>
+      <div><b>OSC · FILTER · DELAY</b><span>Each changes how its function's faders are read, not the faders themselves. In the middle, a fader's position sets its value directly; turned down, most positions give lower values (lower pitch, darker filters, shorter delays); turned up, higher. A fader at 0 or 100 stays at the end of the range. FILTER acts on both filter functions; in Subtotal, which has no filter, it is greyed out.</span></div>
       <div><b>FLOW</b><span>Moves five hidden settings between two points the preset's designer chose: pitch push depth, level push depth, filter resonance, glide speed and how far the normalizer lifts quiet sounds. In almost every preset, turning it up makes the voices pull harder on each other.</span></div>
     </div>
 
@@ -1083,21 +1085,24 @@ function randomiseAll() {
 }
 
 /* ---------- knobs ---------- */
-function knobSvg(v) {
+function knobSvg(v, off) {
   const a0 = -225, a1 = 45, a = a0 + (a1 - a0) * v, r = 22, c = 28;
   const pt = (deg) => [c + r * Math.cos(deg * Math.PI / 180), c + r * Math.sin(deg * Math.PI / 180)];
   const [x0, y0] = pt(a0), [x1, y1] = pt(a), [xe, ye] = pt(a1);
   const big = (a - a0) > 180 ? 1 : 0;
   return `<svg viewBox="0 0 56 56" aria-hidden="true"><path d="M${x0} ${y0} A${r} ${r} 0 1 1 ${xe} ${ye}" fill="none" stroke="#3a3a3a" stroke-width="3"/>` +
+    (off ? '</svg>' :
     (v > 0.001 ? `<path d="M${x0} ${y0} A${r} ${r} 0 ${big} 1 ${x1} ${y1}" fill="none" stroke="#fff" stroke-width="3"/>` : '') +
-    `<line x1="${c}" y1="${c}" x2="${x1}" y2="${y1}" stroke="#fff" stroke-width="2"/></svg>`;
+    `<line x1="${c}" y1="${c}" x2="${x1}" y2="${y1}" stroke="#fff" stroke-width="2"/></svg>`);
 }
 const knobEls = [];
 function buildKnobs() {
   const box = document.getElementById('knobs');
-  const defs = KNOB_NAME.map((n, k) => ({ n, get: () => pget(P_KNOB0 + k), show: () => shown(P_KNOB0 + k), set: (x) => pset(P_KNOB0 + k, x), fmt: (x) => Math.round(x * 100) }));
+  const defs = KNOB_NAME.map((n, k) => ({ n, get: () => pget(P_KNOB0 + k), show: () => shown(P_KNOB0 + k), set: (x) => pset(P_KNOB0 + k, x), fmt: (x) => Math.round(x * 100),
+    off: k === 1 ? () => S.patch[0] === 2 : null }));   /* FILTER: Subtotal has no filter */
   defs.push({ n: 'VOLUME', get: () => S.vol, set: (x) => { S.vol = clamp01(x); post({ c: 'vol', x: S.vol }); settingsDirty(); }, fmt: (x) => Math.round(x * 100) });
   for (const d of defs) {
+    if (d.off) { const set = d.set; d.set = (x) => { if (!d.off()) set(x); }; }   /* (greyed out: turning it does nothing) */
     const el = document.createElement('div');
     el.className = 'knob'; el.tabIndex = 0; el.setAttribute('role', 'slider'); el.setAttribute('aria-label', d.n);
     el.innerHTML = `<div class="g"></div><span class="lbl">${d.n}</span><span class="v"></span>`;
@@ -1109,17 +1114,19 @@ function buildKnobs() {
     el.addEventListener('wheel', (e) => { e.preventDefault(); d.set(d.get() + (e.deltaY < 0 ? 0.03 : -0.03)); }, { passive: false });
     el.addEventListener('keydown', (e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { d.set(d.get() + 0.03); e.preventDefault(); } if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { d.set(d.get() - 0.03); e.preventDefault(); } });
     box.append(el);
-    knobEls.push({ el, d, last: -1 });
+    knobEls.push({ el, d, last: -1, off: false });
   }
 }
 function knobsUi() {
   for (const k of knobEls) {
-    const v = k.d.show ? k.d.show() : k.d.get();
-    if (Math.abs(v - k.last) < 1e-4) continue;
-    k.last = v;
-    k.el.querySelector('.g').innerHTML = knobSvg(v);
-    k.el.querySelector('.v').textContent = k.d.fmt(v);
-    k.el.setAttribute('aria-valuenow', k.d.fmt(v));
+    const v = k.d.show ? k.d.show() : k.d.get(), off = !!(k.d.off && k.d.off());
+    if (Math.abs(v - k.last) < 1e-4 && off === k.off) continue;
+    k.last = v; k.off = off;
+    k.el.classList.toggle('off', off);
+    k.el.setAttribute('aria-disabled', off ? 'true' : 'false');
+    k.el.querySelector('.g').innerHTML = knobSvg(off ? 0 : v, off);
+    k.el.querySelector('.v').textContent = off ? '' : k.d.fmt(v);
+    if (off) k.el.removeAttribute('aria-valuenow'); else k.el.setAttribute('aria-valuenow', k.d.fmt(v));
   }
 }
 
