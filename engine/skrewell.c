@@ -62,6 +62,7 @@ static inline float one_pole(float fc, float sr) {
 static void lp_coef(float *c, float fc, float sr);
 static void dl_reshift(skr_engine *e, int li, unsigned ns);
 static void verb_control(skr_engine *e);
+static void r_lead(skr_engine *e);
 
 void skr_default_patch(skr_patch *p) {
     memset(p, 0, sizeof *p);
@@ -185,8 +186,8 @@ static void control(skr_engine *e, unsigned n) {
                 e->Fs[li] = e->cF[v]; e->Ds[li] = e->cDEL[v];
                 e->env[li] = e->envLP[li] = 0.f;
                 e->ic[li][0] = e->ic[li][1] = e->ic[li][2] = e->ic[li][3] = 0.f;
-                e->ysh[0][li] = e->ysh[1][li] = e->yfb[li] = 0.f;
-                e->phase[li] = s ? SKR_LR_OFS : 0.f;
+                e->ysh[0][li] = e->ysh[1][li] = e->ysh[2][li] = e->ysh[3][li] = 0.f;
+                e->phase[li] = 0.f;
             }
         }
         e->cFBp[v] = e->cFB[v];
@@ -200,7 +201,7 @@ static void control(skr_engine *e, unsigned n) {
             e->svf[v][s][0] = a1; e->svf[v][s][1] = g * a1; e->svf[v][s][2] = g * g * a1;
         }
         float smt = e->smt, DEL = e->cDEL[v] > 1e-3f ? e->cDEL[v] : 1e-3f;
-        e->cFco[v] = one_pole(e->Fs[v] / smt, sr);
+        e->cFco[v] = one_pole(e->cF[v] / smt, sr);   /* smooth: P = Log(F / smt), F the target */
         e->cDco[v] = one_pole(pitch_hz(clampf(hz_pitch(500.f * smt / DEL), -80, 0)), sr);
         e->cEnvCo[v] = one_pole(1000.f / (smt * DEL), sr);
         float relMs = smt * DEL > 0.05f ? smt * DEL : 0.05f;  /* Peak Detector: time constant smt*DEL ms */
@@ -220,7 +221,7 @@ static void control(skr_engine *e, unsigned n) {
             e->dinv[li] = 1.f / (float)(1u << e->dshift[li]);
         }
     }
-    if (snap) e->snap_st = 3;
+    if (snap) { r_lead(e); e->snap_st = 3; }
     float db = sel3(P->out, -36, 0, 18);
     db = floorf(db * 2.f + 0.5f) * 0.5f - 18.f;
     e->gainT = e->mute ? 0.f : powf(10.f, db / 20.f);
@@ -423,93 +424,115 @@ static inline AI void verb(skr_engine *e, float *l, float *r) {
     *l = *l * e->rv_dry + wl * e->rv_wet; *r = *r * e->rv_dry + wr * e->rv_wet;
 }
 
-/* ---- the render, by side. Each side (L levers, R levers) reads only the other side's PREVIOUS sample (and its
- * own), so within a sample the two sides are independent and can run on the two cores, meeting once a sample.
- * (Reaktor lets R see L's current sample; on the bench that ordering made no audible difference.)
- * Lever outputs are double-buffered by sample parity: ysh[t & 1] is written at sample t, ysh[(t + 1) & 1] read. */
-static SKR_RAM void side_range(skr_engine *e, int s, unsigned i0, unsigned i1, float *scope, int sync) {
+/* ---- the render, by side (L levers, R levers). Each sample has two halves: A, every lever's output (from its own
+ * past only); then B, the oscillators and loop inputs, which hear the other side: L hears R's outputs of the
+ * previous sample, R hears L's of this sample, as measured in Reaktor (recall tests T1-T5, 2026-11-23). The two
+ * cores meet once a sample, between A and B.
+ * Lever outputs sit in a ring of 4 samples, ysh[t & 3]. */
+/* One lever, the two halves of a sample. lever_out: its output for this sample (delay read, normaliser), from its own
+ * past only. lever_in: the oscillator and the loop input x, which takes the other side's outputs (FMs, AMs) and its
+ * own previous output (ypr). Returns the oscillator (the scope draws it). */
+static inline AI float lever_out(skr_engine *e, int li, int v) {
+    const float sr = e->sr;
+    e->Fs[li] += e->cFco[v] * (e->cF[v] - e->Fs[li]);
+    e->Ds[li] += e->cDco[v] * (e->cDEL[v] - e->Ds[li]);
+    float dsamp = e->Ds[li] * sr * 0.001f;
+    if (dsamp < 1) dsamp = 1;
+    float d = dl_read(e, li, dsamp);   /* x up to the previous sample: delay >= 1 sample */
+    float ad = fabsf(d), en = e->env[li] * e->cRel[v];
+    if (ad > en) en = ad;
+    e->env[li] = en;
+    float ec = clampf(en, e->nrm, 300.f);
+    e->envLP[li] += e->cEnvCo[v] * (ec - e->envLP[li]);
+    return d / (e->envLP[li] > 1e-4f ? e->envLP[li] : 1e-4f);
+}
+static inline AI float lever_in(skr_engine *e, int li, int v, float FMs, float AMs, float ri, float ypr) {
     const float sr = e->sr, k = e->k; const int m = e->p.mode;
+    /* LEVER */
+    float pos = clampf(0.5f * FMs + 0.5f, 0, 1);
+    float freq = e->Fs[li] * fexp2(e->log2fm * (2.f * pos - 1.f));
+    float A = e->cAp[v] + e->cAd[v] * ri, amp = A + AMs * (e->amD * A);
+    float ph = e->phase[li] + freq / sr; ph -= floorf(ph); e->phase[li] = ph;
+    float osc;
+    if (m == SKR_SUBTOTAL) { float u = 2.f * ph - 1.f; osc = amp * 4.f * u * (1.f - fabsf(u)); }
+    else osc = ph < 0.5f ? amp : -amp;
+    float FB = e->cFBp[v] + e->cFBd[v] * ri, x;
+    float *ic = e->ic[li];
+    if (m == SKR_XUNG_TEKH) {
+        const float *c = e->svf[v][0];
+        float v3 = osc - ic[1], v1 = c[0] * ic[0] + c[1] * v3, v2 = ic[1] + c[1] * ic[0] + c[2] * v3;
+        ic[0] = 2 * v1 - ic[0]; ic[1] = 2 * v2 - ic[1];
+        float hp = osc - k * v1 - v2;
+        x = k * sel3(e->cTyp[v], v2, v1, hp) + FB * ypr;
+    } else if (m == SKR_IMPLANT_QUAD) {
+        float xi = osc + FB * ypr;
+        const float *c = e->svf[v][0];
+        float v3 = xi - ic[1], v1 = c[0] * ic[0] + c[1] * v3, v2 = ic[1] + c[1] * ic[0] + c[2] * v3;
+        ic[0] = 2 * v1 - ic[0]; ic[1] = 2 * v2 - ic[1];
+        float hp = k * (xi - k * v1 - v2);
+        c = e->svf[v][1];
+        v3 = hp - ic[3]; v1 = c[0] * ic[2] + c[1] * v3; v2 = ic[3] + c[1] * ic[2] + c[2] * v3;
+        ic[2] = 2 * v1 - ic[2]; ic[3] = 2 * v2 - ic[3];
+        x = k * v2;
+    } else x = osc + FB * ypr;
+    if (!(x > -1e6f && x < 1e6f)) x = 0;
+    dl_write(e, li, x);
+    return osc;
+}
+
+static SKR_RAM void side_range(skr_engine *e, int s, unsigned i0, unsigned i1, float *scope, int sync) {
+    const int m = e->p.mode;
     const int oth = (1 - s) * NV;
     float *out = e->sideOut[s];
     const float scT = s ? e->scY : e->scX;
     unsigned spin = 0;
     for (unsigned i = i0; i < i1; i++) {
         const unsigned t = e->scount + i;
-        const float *src = e->ysh[(t + 1) & 1];
-        float *dst = e->ysh[t & 1];
+        float *dst = e->ysh[t & 3];
         float sum = 0;
-        e->scS[s] += e->scCo * (scT - e->scS[s]);
-        for (int v = 0; v < NV; v++) {
-            const int li = s * NV + v;
-            e->Fs[li] += e->cFco[v] * (e->cF[v] - e->Fs[li]);
-            e->Ds[li] += e->cDco[v] * (e->cDEL[v] - e->Ds[li]);
-            float dsamp = e->Ds[li] * sr * 0.001f;
-            if (dsamp < 1) dsamp = 1;
-            float FMs, AMs;
-            if (m == SKR_SUBTOTAL) {
-                float sm = 0;
-                /* Reaktor's FB = VoiceCombiner(y) - UnitDelay(y): the other channels, plus the opposite channel's
-                 * y[n-1] - y[n-2] (the subtraction is a sample late), which couples the high states harder */
-                for (int u = 0; u < NV; u++) if (u != v) sm += src[oth + u];
-                float yo = src[oth + v]; sm += yo - e->yfb[li]; e->yfb[li] = yo;
-                FMs = e->cFV[v] * sm; AMs = e->cAV[v] * sm;
-            } else {
-                const uint8_t *ix = e->cvIx[li];
-                float a0 = src[oth + ix[0]], a1 = src[oth + ix[1]], b0 = src[oth + ix[2]], b1 = src[oth + ix[3]];
-                FMs = a0 + (a1 - a0) * e->cvFr[li][0];
-                AMs = b0 + (b1 - b0) * e->cvFr[li][1];
-            }
-            /* LEVER */
-            float pos = clampf(0.5f * FMs + 0.5f, 0, 1);
-            float freq = e->Fs[li] * fexp2(e->log2fm * (2.f * pos - 1.f));
-            const float ri = (float)(i + 1u);
-            float A = e->cAp[v] + e->cAd[v] * ri, amp = A + AMs * (e->amD * A);
-            float ph = e->phase[li] + freq / sr; ph -= floorf(ph); e->phase[li] = ph;
-            float osc;
-            if (m == SKR_SUBTOTAL) { float u = 2.f * ph - 1.f; osc = amp * 4.f * u * (1.f - fabsf(u)); }
-            else osc = ph < 0.5f ? amp : -amp;
-            float FB = e->cFBp[v] + e->cFBd[v] * ri, ypr = src[li], x;
-            float *ic = e->ic[li];
-            if (m == SKR_XUNG_TEKH) {
-                const float *c = e->svf[v][0];
-                float v3 = osc - ic[1], v1 = c[0] * ic[0] + c[1] * v3, v2 = ic[1] + c[1] * ic[0] + c[2] * v3;
-                ic[0] = 2 * v1 - ic[0]; ic[1] = 2 * v2 - ic[1];
-                float hp = osc - k * v1 - v2;
-                x = k * sel3(e->cTyp[v], v2, v1, hp) + FB * ypr;
-            } else if (m == SKR_IMPLANT_QUAD) {
-                float xi = osc + FB * ypr;
-                const float *c = e->svf[v][0];
-                float v3 = xi - ic[1], v1 = c[0] * ic[0] + c[1] * v3, v2 = ic[1] + c[1] * ic[0] + c[2] * v3;
-                ic[0] = 2 * v1 - ic[0]; ic[1] = 2 * v2 - ic[1];
-                float hp = k * (xi - k * v1 - v2);
-                c = e->svf[v][1];
-                v3 = hp - ic[3]; v1 = c[0] * ic[2] + c[1] * v3; v2 = ic[3] + c[1] * ic[2] + c[2] * v3;
-                ic[2] = 2 * v1 - ic[2]; ic[3] = 2 * v2 - ic[3];
-                x = k * v2;
-            } else x = osc + FB * ypr;
-            if (!(x > -1e6f && x < 1e6f)) x = 0;
-            /* Single Delay */
-            float d = dl_read(e, li, dsamp);   /* read before write: delay >= 1 sample */
-            dl_write(e, li, x);
-            /* norm */
-            float ad = fabsf(d), en = e->env[li] * e->cRel[v];
-            if (ad > en) en = ad;
-            e->env[li] = en;
-            float ec = clampf(en, e->nrm, 300.f);
-            e->envLP[li] += e->cEnvCo[v] * (ec - e->envLP[li]);
-            float o = d / (e->envLP[li] > 1e-4f ? e->envLP[li] : 1e-4f);
-            dst[li] = o;
-            sum += o;
-            if (scope) scope[i * 2 * NV + 2 * v + s] = lerpf(m == SKR_SUBTOTAL ? osc : FMs, o, e->scS[s]);
-        }
+        /* A: every lever's output for sample t */
+        for (int v = 0; v < NV; v++) { float o = lever_out(e, s * NV + v, v); dst[s * NV + v] = o; sum += o; }
         out[i] = sum;
-        if (sync) {                                   /* meet the other core: both done with sample t */
+        if (sync) {                                   /* meet the other core: both have their outputs for t */
             e->cnt[s] = i + 1;
             if (e->fence) e->fence();
             while (e->cnt[1 - s] < i + 1)
                 if (++spin > 40000000u) { e->broken = 1; return; }   /* (the other core is gone) */
         }
+        /* B: oscillators and loop inputs. As measured in Reaktor: L hears R's outputs a sample late, R hears L's of
+         * this sample (R is computed after L). Ring slots t+1 (the other core's next A) and t, t-1, t-2 (read here)
+         * never meet. */
+        const float *so = e->ysh[(s ? t : t - 1u) & 3], *so1 = e->ysh[(s ? t - 1u : t - 2u) & 3];
+        const float *self1 = e->ysh[(t - 1u) & 3];
+        const float ri = (float)(i + 1u);
+        e->scS[s] += e->scCo * (scT - e->scS[s]);
+        for (int v = 0; v < NV; v++) {
+            const int li = s * NV + v;
+            float FMs, AMs;
+            if (m == SKR_SUBTOTAL) {
+                /* Reaktor's FB = VoiceCombiner(y) - UnitDelay(y): the other channels, plus the opposite channel's
+                 * own one-sample difference (the subtraction is a sample late), which couples high states harder */
+                float sm = 0;
+                for (int u = 0; u < NV; u++) sm += so[oth + u];
+                sm -= so1[oth + v];
+                FMs = e->cFV[v] * sm; AMs = e->cAV[v] * sm;
+            } else {
+                const uint8_t *ix = e->cvIx[li];
+                float a0 = so[oth + ix[0]], a1 = so[oth + ix[1]], b0 = so[oth + ix[2]], b1 = so[oth + ix[3]];
+                FMs = a0 + (a1 - a0) * e->cvFr[li][0];
+                AMs = b0 + (b1 - b0) * e->cvFr[li][1];
+            }
+            float osc = lever_in(e, li, v, FMs, AMs, ri, self1[li]);
+            if (scope) scope[i * 2 * NV + 2 * v + s] = lerpf(m == SKR_SUBTOTAL ? osc : FMs, dst[li], e->scS[s]);
+        }
     }
+}
+
+/* After a restart, R's levers run one sample ahead of L's: Reaktor computes R a whole sample before L (its R output
+ * is L's, one sample early, bit for bit: recall tests T1, T2, T5). So R runs one sample on its own here, with silent
+ * inputs, before the first sample of the block. This is also what lets L and R drift apart, as in Reaktor. */
+static void r_lead(skr_engine *e) {
+    for (int v = 0; v < NV; v++) { int li = NV + v; (void)lever_out(e, li, v); (void)lever_in(e, li, v, 0.f, 0.f, 0.f, 0.f); }
 }
 
 void skr_block_begin(skr_engine *e, unsigned n) {
